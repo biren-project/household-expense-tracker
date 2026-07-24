@@ -53,13 +53,13 @@
             flex-wrap: wrap;
             margin-bottom: 15px;
         }
-        input, button {
+        input, select, button {
             padding: 10px;
             font-size: 14px;
             border: 1px solid #ccc;
             border-radius: 4px;
         }
-        input { flex: 1; min-width: 120px; }
+        input, select { flex: 1; min-width: 120px; }
         button {
             background-color: #27ae60;
             color: white;
@@ -128,7 +128,11 @@
             <h2>Submit New Expense</h2>
             <form id="expense-form" class="form-group">
                 <input type="date" id="date" required>
-                <input type="text" id="description" placeholder="Description (e.g. Groceries)" required>
+                <select id="category" required>
+                    <option value="household" selected>General Household (4-Way Split)</option>
+                    <option value="utility">Utility Bill (9-Way Split)</option>
+                </select>
+                <input type="text" id="description" placeholder="Description (e.g. Groceries or Hydro)" required>
                 <input type="number" id="amount" placeholder="Amount ($)" step="0.01" min="0" required>
                 <button type="submit">Submit Expense</button>
             </form>
@@ -144,6 +148,7 @@
                     <tr>
                         <th>Date</th>
                         <th>Paid By</th>
+                        <th>Category</th>
                         <th>Description</th>
                         <th>Amount ($)</th>
                         <th id="actions-col" style="display: none;">Actions</th>
@@ -160,8 +165,7 @@
         <!-- Monthly Settlement Report (Admin Only) -->
         <div class="card" id="report-card" style="display: none;">
             <h2>Monthly Settlement Report</h2>
-            <p><strong>Total Household Spending:</strong> $<span id="total-expenses">0.00</span></p>
-            <p><strong>Equal Share Per Person (4 People):</strong> $<span id="per-person-share">0.00</span></p>
+            <p><strong>Total Spending:</strong> $<span id="total-expenses">0.00</span></p>
 
             <h3>1. Direct Transfers (Who owes whom)</h3>
             <ul id="transfers-list" class="payment-list">
@@ -174,6 +178,7 @@
                     <tr>
                         <th>Person</th>
                         <th>Total Paid</th>
+                        <th>Target Share</th>
                         <th>Net Balance</th>
                         <th>Status</th>
                     </tr>
@@ -192,7 +197,11 @@
     </div>
 
     <script>
-        const people = ["Biren", "Akshay", "Kunjalbhabhi", "Biju"];
+        // Define groups
+        const mainHousehold = ["Biren", "Akshay", "Kunjalbhabhi", "Biju"]; // 4 People
+        const upstairsFamily = ["Upstairs 1", "Upstairs 2", "Upstairs 3", "Upstairs 4"]; // 4 Upstairs Residents
+        const all9People = [...mainHousehold, ...upstairsFamily]; // Total 9 People for Utilities (including Biren/Admin)
+
         let expenses = JSON.parse(localStorage.getItem('household_expenses')) || [];
 
         // Parse URL Parameters
@@ -202,7 +211,7 @@
         const isAdmin = (currentUser === 'Biren' && currentRole === 'admin');
 
         // Validate user identity from URL
-        if (!currentUser || !people.includes(currentUser)) {
+        if (!currentUser || !all9People.includes(currentUser)) {
             document.getElementById('error-screen').style.display = 'block';
         } else {
             document.getElementById('app-container').style.display = 'block';
@@ -234,10 +243,11 @@
             e.preventDefault();
 
             const date = document.getElementById('date').value;
+            const category = document.getElementById('category').value;
             const description = document.getElementById('description').value;
             const amount = parseFloat(document.getElementById('amount').value);
 
-            expenses.push({ id: Date.now(), date, paidBy: currentUser, description, amount });
+            expenses.push({ id: Date.now(), date, category, paidBy: currentUser, description, amount });
             localStorage.setItem('household_expenses', JSON.stringify(expenses));
 
             document.getElementById('description').value = '';
@@ -251,13 +261,12 @@
             const list = document.getElementById('expense-list');
             list.innerHTML = '';
 
-            // Standard users only see their own expenses; Admin sees all
             const userExpenses = isAdmin 
                 ? expenses 
                 : expenses.filter(item => item.paidBy === currentUser);
 
             if (userExpenses.length === 0) {
-                const colSpan = isAdmin ? 5 : 4;
+                const colSpan = isAdmin ? 6 : 5;
                 list.innerHTML = `<tr><td colspan="${colSpan}">No expenses recorded yet.</td></tr>`;
                 return;
             }
@@ -277,9 +286,14 @@
                     `;
                 }
 
+                const categoryTag = item.category === 'utility' 
+                    ? '<span style="color:#d35400; font-weight:bold;">Utility (9-Way)</span>' 
+                    : '<span style="color:#2980b9;">Household (4-Way)</span>';
+
                 row.innerHTML = `
                     <td>${item.date}</td>
                     <td><strong>${item.paidBy}</strong></td>
+                    <td>${categoryTag}</td>
                     <td>${item.description}</td>
                     <td>$${item.amount.toFixed(2)}</td>
                     ${actionsCell}
@@ -327,19 +341,29 @@
             }
         }
 
-        // Admin Action: Calculate Monthly Report
+        // Admin Action: Calculate Dual-Split Monthly Report
         function calculateSettlement() {
             if (!isAdmin) return;
 
-            const totalAmount = expenses.reduce((sum, item) => sum + item.amount, 0);
-            const share = totalAmount / people.length;
+            let householdTotal = 0;
+            let utilityTotal = 0;
+
+            expenses.forEach(item => {
+                if (item.category === 'utility') {
+                    utilityTotal += item.amount;
+                } else {
+                    householdTotal += item.amount;
+                }
+            });
+
+            const householdShare = householdTotal / mainHousehold.length; // Divided by 4
+            const utilityShare = utilityTotal / all9People.length;       // Divided by 9
+
+            document.getElementById('total-expenses').innerText = (householdTotal + utilityTotal).toFixed(2);
 
             const paidTotals = {};
-            people.forEach(person => paidTotals[person] = 0);
+            all9People.forEach(person => paidTotals[person] = 0);
             expenses.forEach(item => paidTotals[item.paidBy] += item.amount);
-
-            document.getElementById('total-expenses').innerText = totalAmount.toFixed(2);
-            document.getElementById('per-person-share').innerText = share.toFixed(2);
 
             let debtors = [];
             let creditors = [];
@@ -347,9 +371,15 @@
             const settlementBody = document.getElementById('settlement-list');
             settlementBody.innerHTML = '';
 
-            people.forEach(person => {
+            all9People.forEach(person => {
                 const paid = paidTotals[person];
-                const net = paid - share;
+                
+                // Main Household (4 people) pays 4-way household share + 9-way utility share
+                // Upstairs Family pays ONLY 9-way utility share
+                const isMainHousehold = mainHousehold.includes(person);
+                const targetShare = isMainHousehold ? (householdShare + utilityShare) : utilityShare;
+
+                const net = paid - targetShare;
                 const statusClass = net >= 0 ? 'gets-back' : 'owes';
                 const statusText = net >= 0 
                     ? `Gets back $${net.toFixed(2)}` 
@@ -362,6 +392,7 @@
                 row.innerHTML = `
                     <td><strong>${person}</strong></td>
                     <td>$${paid.toFixed(2)}</td>
+                    <td>$${targetShare.toFixed(2)}</td>
                     <td class="${statusClass}">${net > 0 ? '+' : ''}$${net.toFixed(2)}</td>
                     <td class="${statusClass}">${statusText}</td>
                 `;
