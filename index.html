@@ -180,7 +180,7 @@
 
         <!-- Monthly Settlement Report (Admin Only) -->
         <div class="card" id="report-card" style="display: none;">
-            <h2>Monthly Settlement Report (Main Household)</h2>
+            <h2 id="report-title">Monthly Settlement Report (Main Household)</h2>
             
             <div class="summary-box">
                 <p><strong>Total General Household (4-Way):</strong> $<span id="household-total">0.00</span> <em>($<span id="household-share">0.00</span> / person)</em></p>
@@ -440,6 +440,26 @@
         // Admin Action: Calculate Settlement & Spending Summary
         function calculateSettlement() {
             if (!isAdmin) return;
+
+            // --- Dynamic Date Range Report Title ---
+            if (expenses.length > 0) {
+                // Sort expenses chronologically by date
+                const sortedExpenses = [...expenses].sort((a, b) => new Date(a.date) - new Date(b.date));
+                
+                // Earliest recorded transaction date
+                const startDateObj = new Date(sortedExpenses[0].date);
+                const startDateStr = startDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                
+                // Report generation date (today)
+                const endDateObj = new Date();
+                const endDateStr = endDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                
+                // Update heading title dynamically
+                const reportTitleElem = document.getElementById('report-title');
+                if (reportTitleElem) {
+                    reportTitleElem.innerText = `Household Expense Settlement Report (${startDateStr} – ${endDateStr})`;
+                }
+            }
 
             let householdTotal = 0;
             let shawTotal = 0;
