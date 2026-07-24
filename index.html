@@ -108,6 +108,13 @@
             border-radius: 8px;
             color: #e74c3c;
         }
+        .summary-box {
+            background: #f8f9fa;
+            border: 1px solid #e2e8f0;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
     </style>
 </head>
 <body>
@@ -164,8 +171,13 @@
 
         <!-- Monthly Settlement Report (Admin Only) -->
         <div class="card" id="report-card" style="display: none;">
-            <h2>Monthly Settlement Report</h2>
-            <p><strong>Total Spending:</strong> $<span id="total-expenses">0.00</span></p>
+            <h2>Monthly Settlement Report (Main Household)</h2>
+            
+            <div class="summary-box">
+                <p><strong>Total Household Expenses (4-Way):</strong> $<span id="household-total">0.00</span> <em>($<span id="household-share">0.00</span> / person)</em></p>
+                <p><strong>Total Utility Expenses (9-Way):</strong> $<span id="utility-total">0.00</span> <em>($<span id="utility-share">0.00</span> / person)</em></p>
+                <p><strong>Upstairs Utility Contribution (5/9th Total):</strong> $<span id="upstairs-total">0.00</span></p>
+            </div>
 
             <h3>1. Direct Transfers (Who owes whom)</h3>
             <ul id="transfers-list" class="payment-list">
@@ -184,7 +196,7 @@
                     </tr>
                 </thead>
                 <tbody id="settlement-list">
-                    <!-- Balance summaries -->
+                    <!-- Balance summaries for 4 main members -->
                 </tbody>
             </table>
         </div>
@@ -197,10 +209,9 @@
     </div>
 
     <script>
-        // Define groups
-        const mainHousehold = ["Biren", "Akshay", "Kunjalbhabhi", "Biju"]; // 4 People
-        const upstairsFamily = ["Upstairs 1", "Upstairs 2", "Upstairs 3", "Upstairs 4"]; // 4 Upstairs Residents
-        const all9People = [...mainHousehold, ...upstairsFamily]; // Total 9 People for Utilities (including Biren/Admin)
+        // Main household group (4 members)
+        const mainHousehold = ["Biren", "Akshay", "Kunjalbhabhi", "Biju"]; 
+        const TOTAL_UTILITY_RESIDENTS = 9; // Divided 9 ways behind the scenes
 
         let expenses = JSON.parse(localStorage.getItem('household_expenses')) || [];
 
@@ -211,7 +222,7 @@
         const isAdmin = (currentUser === 'Biren' && currentRole === 'admin');
 
         // Validate user identity from URL
-        if (!currentUser || !all9People.includes(currentUser)) {
+        if (!currentUser || !mainHousehold.includes(currentUser)) {
             document.getElementById('error-screen').style.display = 'block';
         } else {
             document.getElementById('app-container').style.display = 'block';
@@ -341,7 +352,7 @@
             }
         }
 
-        // Admin Action: Calculate Dual-Split Monthly Report
+        // Admin Action: Calculate Settlement (Strictly for 4 Main People)
         function calculateSettlement() {
             if (!isAdmin) return;
 
@@ -356,14 +367,27 @@
                 }
             });
 
-            const householdShare = householdTotal / mainHousehold.length; // Divided by 4
-            const utilityShare = utilityTotal / all9People.length;       // Divided by 9
+            // Division logic: Household / 4, Utilities / 9
+            const householdSharePerPerson = householdTotal / mainHousehold.length;
+            const utilitySharePerPerson = utilityTotal / TOTAL_UTILITY_RESIDENTS;
+            const targetSharePerPerson = householdSharePerPerson + utilitySharePerPerson;
 
-            document.getElementById('total-expenses').innerText = (householdTotal + utilityTotal).toFixed(2);
+            const upstairsTotalContribution = utilitySharePerPerson * 5; // 5 Upstairs members
+
+            // Update UI Totals Box
+            document.getElementById('household-total').innerText = householdTotal.toFixed(2);
+            document.getElementById('household-share').innerText = householdSharePerPerson.toFixed(2);
+            document.getElementById('utility-total').innerText = utilityTotal.toFixed(2);
+            document.getElementById('utility-share').innerText = utilitySharePerPerson.toFixed(2);
+            document.getElementById('upstairs-total').innerText = upstairsTotalContribution.toFixed(2);
 
             const paidTotals = {};
-            all9People.forEach(person => paidTotals[person] = 0);
-            expenses.forEach(item => paidTotals[item.paidBy] += item.amount);
+            mainHousehold.forEach(person => paidTotals[person] = 0);
+            expenses.forEach(item => {
+                if (mainHousehold.includes(item.paidBy)) {
+                    paidTotals[item.paidBy] += item.amount;
+                }
+            });
 
             let debtors = [];
             let creditors = [];
@@ -371,15 +395,10 @@
             const settlementBody = document.getElementById('settlement-list');
             settlementBody.innerHTML = '';
 
-            all9People.forEach(person => {
+            // Generate report ONLY for the 4 main people
+            mainHousehold.forEach(person => {
                 const paid = paidTotals[person];
-                
-                // Main Household (4 people) pays 4-way household share + 9-way utility share
-                // Upstairs Family pays ONLY 9-way utility share
-                const isMainHousehold = mainHousehold.includes(person);
-                const targetShare = isMainHousehold ? (householdShare + utilityShare) : utilityShare;
-
-                const net = paid - targetShare;
+                const net = paid - targetSharePerPerson;
                 const statusClass = net >= 0 ? 'gets-back' : 'owes';
                 const statusText = net >= 0 
                     ? `Gets back $${net.toFixed(2)}` 
@@ -392,14 +411,14 @@
                 row.innerHTML = `
                     <td><strong>${person}</strong></td>
                     <td>$${paid.toFixed(2)}</td>
-                    <td>$${targetShare.toFixed(2)}</td>
+                    <td>$${targetSharePerPerson.toFixed(2)}</td>
                     <td class="${statusClass}">${net > 0 ? '+' : ''}$${net.toFixed(2)}</td>
                     <td class="${statusClass}">${statusText}</td>
                 `;
                 settlementBody.appendChild(row);
             });
 
-            // Calculate Direct Transfers
+            // Calculate Direct Transfers between the 4 main people
             const transfersList = document.getElementById('transfers-list');
             transfersList.innerHTML = '';
 
