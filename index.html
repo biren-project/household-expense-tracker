@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Household Expense Tracker</title>
+    <title>253 Herron Mews Monthly Household Expenses </title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -161,7 +161,7 @@
         <div class="card" id="report-card" style="display: none;">
             <h2>Monthly Settlement Report</h2>
             <p><strong>Total Household Spending:</strong> $<span id="total-expenses">0.00</span></p>
-            <p><strong>Equal Share Per Person (5 People):</strong> $<span id="per-person-share">0.00</span></p>
+            <p><strong>Equal Share Per Person (4 People):</strong> $<span id="per-person-share">0.00</span></p>
 
             <h3>1. Direct Transfers (Who owes whom)</h3>
             <ul id="transfers-list" class="payment-list">
@@ -192,7 +192,7 @@
     </div>
 
     <script>
-        const people = ["Biren", "Akshay", "Kunjalbhabhi", "Biju", "Manali"];
+        const people = ["Biren", "Akshay", "Kunjalbhabhi", "Biju"];
         let expenses = JSON.parse(localStorage.getItem('household_expenses')) || [];
 
         // Parse URL Parameters
