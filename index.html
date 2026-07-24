@@ -137,9 +137,12 @@
                 <input type="date" id="date" required>
                 <select id="category" required>
                     <option value="household" selected>General Household (4-Way Split)</option>
-                    <option value="utility">Utility Bill (9-Way Split)</option>
+                    <!-- Admin Only Utility Options -->
+                    <option value="shaw" class="admin-option">Shaw Internet (9-Way Split)</option>
+                    <option value="enmax" class="admin-option">Enmax Electricity (9-Way Split)</option>
+                    <option value="atco" class="admin-option">Atco Gas (9-Way Split)</option>
                 </select>
-                <input type="text" id="description" placeholder="Description (e.g. Groceries or Hydro)" required>
+                <input type="text" id="description" placeholder="Description (e.g. Milk, Monthly Bill)" required>
                 <input type="number" id="amount" placeholder="Amount ($)" step="0.01" min="0" required>
                 <button type="submit">Submit Expense</button>
             </form>
@@ -174,9 +177,14 @@
             <h2>Monthly Settlement Report (Main Household)</h2>
             
             <div class="summary-box">
-                <p><strong>Total Household Expenses (4-Way):</strong> $<span id="household-total">0.00</span> <em>($<span id="household-share">0.00</span> / person)</em></p>
-                <p><strong>Total Utility Expenses (9-Way):</strong> $<span id="utility-total">0.00</span> <em>($<span id="utility-share">0.00</span> / person)</em></p>
-                <p><strong>Upstairs Utility Contribution (5/9th Total):</strong> $<span id="upstairs-total">0.00</span></p>
+                <p><strong>Total General Household (4-Way):</strong> $<span id="household-total">0.00</span> <em>($<span id="household-share">0.00</span> / person)</em></p>
+                <hr style="border:0; border-top: 1px dashed #ccc; margin: 10px 0;">
+                <p>🌐 <strong>Shaw Internet Total:</strong> $<span id="shaw-total">0.00</span> <em>($<span id="shaw-share">0.00</span> / person)</em></p>
+                <p>⚡ <strong>Enmax Electricity Total:</strong> $<span id="enmax-total">0.00</span> <em>($<span id="enmax-share">0.00</span> / person)</em></p>
+                <p>🔥 <strong>Atco Gas Total:</strong> $<span id="atco-total">0.00</span> <em>($<span id="atco-share">0.00</span> / person)</em></p>
+                <hr style="border:0; border-top: 1px dashed #ccc; margin: 10px 0;">
+                <p><strong>Combined Utility Total (9-Way):</strong> $<span id="utility-total">0.00</span> <em>($<span id="utility-share">0.00</span> / person)</em></p>
+                <p><strong>Upstairs Family Contribution (5/9th Utility Total):</strong> $<span id="upstairs-total">0.00</span></p>
             </div>
 
             <h3>1. Direct Transfers (Who owes whom)</h3>
@@ -228,19 +236,21 @@
             document.getElementById('app-container').style.display = 'block';
             document.getElementById('display-name').innerText = currentUser;
             
-            // Set Role Badge
-            document.getElementById('role-badge').innerHTML = isAdmin 
-                ? '<span class="admin-badge">ADMIN MODE</span>' 
-                : '<span class="user-badge">PERSONAL ACCOUNT</span>';
-
-            // Show Admin-only controls
+            // Set Role Badge & Toggle Admin-only controls
             if (isAdmin) {
+                document.getElementById('role-badge').innerHTML = '<span class="admin-badge">ADMIN MODE</span>';
                 document.getElementById('clear-btn').style.display = 'block';
                 document.getElementById('calc-btn').style.display = 'block';
                 document.getElementById('actions-col').style.display = 'table-cell';
                 document.getElementById('log-title').innerText = 'All Logged Expenses (Master Log)';
             } else {
+                document.getElementById('role-badge').innerHTML = '<span class="user-badge">PERSONAL ACCOUNT</span>';
                 document.getElementById('log-title').innerText = `Your Submitted Expenses (${currentUser})`;
+                
+                // HIDE Utility options for non-admin users
+                const adminOptions = document.querySelectorAll('.admin-option');
+                adminOptions.forEach(opt => opt.style.display = 'none');
+                document.getElementById('category').value = 'household';
             }
 
             // Set default date to today
@@ -267,7 +277,7 @@
             renderExpenses();
         });
 
-        // Render Expenses
+        // Render Expenses Table
         function renderExpenses() {
             const list = document.getElementById('expense-list');
             list.innerHTML = '';
@@ -297,9 +307,10 @@
                     `;
                 }
 
-                const categoryTag = item.category === 'utility' 
-                    ? '<span style="color:#d35400; font-weight:bold;">Utility (9-Way)</span>' 
-                    : '<span style="color:#2980b9;">Household (4-Way)</span>';
+                let categoryTag = '<span style="color:#2980b9;">Household (4-Way)</span>';
+                if (item.category === 'shaw') categoryTag = '<span style="color:#d35400; font-weight:bold;">Shaw Internet (9-Way)</span>';
+                if (item.category === 'enmax') categoryTag = '<span style="color:#f39c12; font-weight:bold;">Enmax Elec (9-Way)</span>';
+                if (item.category === 'atco') categoryTag = '<span style="color:#e74c3c; font-weight:bold;">Atco Gas (9-Way)</span>';
 
                 row.innerHTML = `
                     <td>${item.date}</td>
@@ -352,24 +363,31 @@
             }
         }
 
-        // Admin Action: Calculate Settlement (Strictly for 4 Main People)
+        // Admin Action: Calculate Settlement (Separate Utilities)
         function calculateSettlement() {
             if (!isAdmin) return;
 
             let householdTotal = 0;
-            let utilityTotal = 0;
+            let shawTotal = 0;
+            let enmaxTotal = 0;
+            let atcoTotal = 0;
 
             expenses.forEach(item => {
-                if (item.category === 'utility') {
-                    utilityTotal += item.amount;
-                } else {
-                    householdTotal += item.amount;
-                }
+                if (item.category === 'shaw') shawTotal += item.amount;
+                else if (item.category === 'enmax') enmaxTotal += item.amount;
+                else if (item.category === 'atco') atcoTotal += item.amount;
+                else householdTotal += item.amount;
             });
 
-            // Division logic: Household / 4, Utilities / 9
-            const householdSharePerPerson = householdTotal / mainHousehold.length;
-            const utilitySharePerPerson = utilityTotal / TOTAL_UTILITY_RESIDENTS;
+            const utilityTotal = shawTotal + enmaxTotal + atcoTotal;
+
+            // Individual share calculations
+            const householdSharePerPerson = householdTotal / mainHousehold.length; // Divided by 4
+            const shawSharePerPerson = shawTotal / TOTAL_UTILITY_RESIDENTS;         // Divided by 9
+            const enmaxSharePerPerson = enmaxTotal / TOTAL_UTILITY_RESIDENTS;       // Divided by 9
+            const atcoSharePerPerson = atcoTotal / TOTAL_UTILITY_RESIDENTS;         // Divided by 9
+
+            const utilitySharePerPerson = shawSharePerPerson + enmaxSharePerPerson + atcoSharePerPerson;
             const targetSharePerPerson = householdSharePerPerson + utilitySharePerPerson;
 
             const upstairsTotalContribution = utilitySharePerPerson * 5; // 5 Upstairs members
@@ -377,6 +395,16 @@
             // Update UI Totals Box
             document.getElementById('household-total').innerText = householdTotal.toFixed(2);
             document.getElementById('household-share').innerText = householdSharePerPerson.toFixed(2);
+            
+            document.getElementById('shaw-total').innerText = shawTotal.toFixed(2);
+            document.getElementById('shaw-share').innerText = shawSharePerPerson.toFixed(2);
+
+            document.getElementById('enmax-total').innerText = enmaxTotal.toFixed(2);
+            document.getElementById('enmax-share').innerText = enmaxSharePerPerson.toFixed(2);
+
+            document.getElementById('atco-total').innerText = atcoTotal.toFixed(2);
+            document.getElementById('atco-share').innerText = atcoSharePerPerson.toFixed(2);
+
             document.getElementById('utility-total').innerText = utilityTotal.toFixed(2);
             document.getElementById('utility-share').innerText = utilitySharePerPerson.toFixed(2);
             document.getElementById('upstairs-total').innerText = upstairsTotalContribution.toFixed(2);
