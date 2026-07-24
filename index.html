@@ -7,7 +7,7 @@
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 850px;
+            max-width: 900px;
             margin: 30px auto;
             padding: 20px;
             background-color: #f4f6f8;
@@ -41,6 +41,14 @@
         }
         .user-badge {
             background-color: #3498db;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .landlord-badge {
+            background-color: #9b59b6;
             color: #fff;
             padding: 4px 8px;
             border-radius: 4px;
@@ -92,6 +100,7 @@
         th { background-color: #f8f9fa; }
         .owes { color: #c0392b; font-weight: bold; }
         .gets-back { color: #27ae60; font-weight: bold; }
+        .landlord-pay { color: #8e44ad; font-weight: bold; }
         .payment-list { list-style: none; padding: 0; }
         .payment-list li {
             background: #eef7fe;
@@ -100,6 +109,10 @@
             margin-bottom: 8px;
             border-radius: 0 4px 4px 0;
             font-size: 15px;
+        }
+        .payment-list li.landlord-transfer {
+            background: #f4ecf7;
+            border-left: 4px solid #8e44ad;
         }
         .no-access {
             text-align: center;
@@ -141,13 +154,13 @@
             <form id="expense-form" class="form-group">
                 <input type="date" id="date" required>
                 <select id="category" required>
-                    <option value="household" selected>General Household (4-Way Split)</option>
-                    <!-- Admin Only Utility Options -->
-                    <option value="shaw" class="admin-option">Shaw Internet (9-Way Split)</option>
-                    <option value="enmax" class="admin-option">Enmax Electricity (9-Way Split)</option>
-                    <option value="atco" class="admin-option">Atco Gas (9-Way Split)</option>
+                    <option value="household" id="opt-household" selected>General Household (4-Way Split)</option>
+                    <!-- Landlord Jaimin Only Options -->
+                    <option value="shaw" class="jaimin-option" style="display:none;">Shaw Internet (9-Way Split)</option>
+                    <option value="enmax" class="jaimin-option" style="display:none;">Enmax Electricity (9-Way Split)</option>
+                    <option value="atco" class="jaimin-option" style="display:none;">Atco Gas (9-Way Split)</option>
                 </select>
-                <input type="text" id="description" placeholder="Description (e.g. Milk, Groceries)" required>
+                <input type="text" id="description" placeholder="Description (e.g. Milk, Groceries, Utility Bill)" required>
                 <input type="number" id="amount" placeholder="Amount ($)" step="0.01" min="0" required>
                 <button type="submit" id="submit-btn">Submit Expense</button>
             </form>
@@ -157,7 +170,7 @@
         <!-- Logged Expenses View -->
         <div class="card">
             <button id="clear-btn" class="btn-clear" onclick="clearAllData()" style="display: none;">Reset / Clear All</button>
-            <h2 id="log-title">Logged Expenses</h2>
+            <h2 id="log-title">All Logged Expenses (Master Log)</h2>
 
             <table>
                 <thead>
@@ -180,7 +193,7 @@
 
         <!-- Monthly Settlement Report (Admin Only) -->
         <div class="card" id="report-card" style="display: none;">
-            <h2 id="report-title">Monthly Settlement Report (Main Household)</h2>
+            <h2 id="report-title">Monthly Settlement Report (Basement)</h2>
             
             <div class="summary-box">
                 <p><strong>Total General Household (4-Way):</strong> $<span id="household-total">0.00</span> <em>($<span id="household-share">0.00</span> / person)</em></p>
@@ -193,14 +206,15 @@
                 <p><strong>Upstairs Family Contribution (5/9th Utility Total):</strong> $<span id="upstairs-total">0.00</span></p>
             </div>
 
-            <h3>1. Spending Breakdown by Person (Total Paid Out of Pocket)</h3>
+            <h3>1. Rent & Utility Breakdown (Payable to Jaimin)</h3>
             <table>
                 <thead>
                     <tr>
                         <th>Person</th>
                         <th>Household Spent</th>
-                        <th>Utility Spent</th>
-                        <th>Total Out-of-Pocket Spent</th>
+                        <th>Utility Share</th>
+                        <th>Rent Share</th>
+                        <th>Total Payable to Jaimin</th>
                     </tr>
                 </thead>
                 <tbody id="spending-breakdown-list">
@@ -210,19 +224,24 @@
 
             <br>
 
-            <h3>2. Direct Transfers (Who owes whom)</h3>
+            <h3>2. Separate Transfers to Jaimin (Rent + Utilities)</h3>
+            <ul id="landlord-transfers-list" class="payment-list">
+                <!-- Landlord direct payments populate here -->
+            </ul>
+
+            <h3>3. Internal Household Transfers (Groceries & Shared Expenses)</h3>
             <ul id="transfers-list" class="payment-list">
                 <!-- Direct transfer steps populate here -->
             </ul>
 
-            <h3>3. Individual Balances & Settlement</h3>
+            <h3>4. Individual Balances & Settlement Summary</h3>
             <table>
                 <thead>
                     <tr>
                         <th>Person</th>
-                        <th>Total Paid</th>
-                        <th>Target Share</th>
-                        <th>Net Balance</th>
+                        <th>Household Paid</th>
+                        <th>Household Share Owed</th>
+                        <th>Household Net Balance</th>
                         <th>Status</th>
                     </tr>
                 </thead>
@@ -244,9 +263,18 @@
         const JSONBIN_BIN_ID = "6a63d85cf5f4af5e29bd604c";
         const JSONBIN_MASTER_KEY = "$2a$10$aGsMHmzawGqngUYQk4byNO6eOgVEFFObkr5LyuKv1hQ73QECFOWN2";
 
-        // Main household group (4 members)
+        // Household configurations
         const mainHousehold = ["Biren", "Akshay", "Kunjalbhabhi", "Biju"]; 
+        const validUsers = ["Biren", "Akshay", "Kunjalbhabhi", "Biju", "Jaimin"];
         const TOTAL_UTILITY_RESIDENTS = 9; 
+
+        // RENT STRUCTURE: $1,300 divided equally between Akshay & Biren ($650 each)
+        const rentDistribution = {
+            "Biren": 650,
+            "Akshay": 650,
+            "Kunjalbhabhi": 0,
+            "Biju": 0
+        };
 
         let expenses = [];
 
@@ -255,31 +283,32 @@
         const currentUser = urlParams.get('user');
         const currentRole = urlParams.get('role');
         
-        // STRICT ADMIN CHECK
+        // USER CHECKS
         const isAdmin = (currentUser === 'Biren' && currentRole === 'admin');
+        const isJaimin = (currentUser === 'Jaimin');
 
         // Validate user identity from URL
-        if (!currentUser || !mainHousehold.includes(currentUser)) {
+        if (!currentUser || !validUsers.includes(currentUser)) {
             document.getElementById('error-screen').style.display = 'block';
         } else {
             document.getElementById('app-container').style.display = 'block';
             document.getElementById('display-name').innerText = currentUser;
             
-            // Set Role Badge & Toggle Admin-only controls
+            // Set Role Badges & Form Controls
             if (isAdmin) {
                 document.getElementById('role-badge').innerHTML = '<span class="admin-badge">ADMIN MODE</span>';
                 document.getElementById('clear-btn').style.display = 'block';
                 document.getElementById('calc-btn').style.display = 'block';
                 document.getElementById('actions-col').style.display = 'table-cell';
-                document.getElementById('log-title').innerText = 'All Logged Expenses (Master Log)';
+            } else if (isJaimin) {
+                document.getElementById('role-badge').innerHTML = '<span class="landlord-badge">LANDLORD / UTILITY MANAGER</span>';
+                
+                // Jaimin enters ONLY utilities
+                document.querySelectorAll('.jaimin-option').forEach(opt => opt.style.display = 'block');
+                document.getElementById('opt-household').remove(); // Hide household expense option
+                document.getElementById('category').value = 'shaw';
             } else {
                 document.getElementById('role-badge').innerHTML = '<span class="user-badge">PERSONAL ACCOUNT</span>';
-                document.getElementById('log-title').innerText = `Your Submitted Expenses (${currentUser})`;
-                
-                // REMOVE Utility options completely from the dropdown for non-admin users
-                const adminOptions = document.querySelectorAll('.admin-option');
-                adminOptions.forEach(opt => opt.remove());
-                document.getElementById('category').value = 'household';
             }
 
             document.getElementById('date').valueAsDate = new Date();
@@ -336,7 +365,8 @@
             const description = document.getElementById('description').value;
             const amount = parseFloat(document.getElementById('amount').value);
 
-            if (!isAdmin) {
+            // Restrict categories per role
+            if (!isAdmin && !isJaimin) {
                 category = 'household';
             }
 
@@ -351,14 +381,13 @@
             renderExpenses();
         });
 
-        // Render Expenses Table
+        // Render Expenses Table (Shows all expenses to everyone)
         function renderExpenses() {
             const list = document.getElementById('expense-list');
             list.innerHTML = '';
 
-            const userExpenses = isAdmin 
-                ? expenses 
-                : expenses.filter(item => item.paidBy === currentUser);
+            // Everyone sees all expenses logged across the household & landlord
+            const userExpenses = [...expenses];
 
             if (userExpenses.length === 0) {
                 const colSpan = isAdmin ? 6 : 5;
@@ -443,21 +472,15 @@
 
             // --- Dynamic Date Range Report Title ---
             if (expenses.length > 0) {
-                // Sort expenses chronologically by date
                 const sortedExpenses = [...expenses].sort((a, b) => new Date(a.date) - new Date(b.date));
-                
-                // Earliest recorded transaction date
                 const startDateObj = new Date(sortedExpenses[0].date);
                 const startDateStr = startDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                
-                // Report generation date (today)
                 const endDateObj = new Date();
                 const endDateStr = endDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                 
-                // Update heading title dynamically
                 const reportTitleElem = document.getElementById('report-title');
                 if (reportTitleElem) {
-                    reportTitleElem.innerText = `Household Expense Settlement Report (${startDateStr} – ${endDateStr})`;
+                    reportTitleElem.innerText = `Household Expense Settlement Report (Basement) (${startDateStr} – ${endDateStr})`;
                 }
             }
 
@@ -466,24 +489,18 @@
             let enmaxTotal = 0;
             let atcoTotal = 0;
 
-            // Track individual spending out of pocket
             const personHouseholdSpent = {};
-            const personUtilitySpent = {};
             mainHousehold.forEach(person => {
                 personHouseholdSpent[person] = 0;
-                personUtilitySpent[person] = 0;
             });
 
             expenses.forEach(item => {
                 if (item.category === 'shaw') {
                     shawTotal += item.amount;
-                    if (personUtilitySpent[item.paidBy] !== undefined) personUtilitySpent[item.paidBy] += item.amount;
                 } else if (item.category === 'enmax') {
                     enmaxTotal += item.amount;
-                    if (personUtilitySpent[item.paidBy] !== undefined) personUtilitySpent[item.paidBy] += item.amount;
                 } else if (item.category === 'atco') {
                     atcoTotal += item.amount;
-                    if (personUtilitySpent[item.paidBy] !== undefined) personUtilitySpent[item.paidBy] += item.amount;
                 } else {
                     householdTotal += item.amount;
                     if (personHouseholdSpent[item.paidBy] !== undefined) personHouseholdSpent[item.paidBy] += item.amount;
@@ -491,53 +508,57 @@
             });
 
             const utilityTotal = shawTotal + enmaxTotal + atcoTotal;
-
             const householdSharePerPerson = householdTotal / mainHousehold.length; 
             const shawSharePerPerson = shawTotal / TOTAL_UTILITY_RESIDENTS;         
             const enmaxSharePerPerson = enmaxTotal / TOTAL_UTILITY_RESIDENTS;       
             const atcoSharePerPerson = atcoTotal / TOTAL_UTILITY_RESIDENTS;         
 
             const utilitySharePerPerson = shawSharePerPerson + enmaxSharePerPerson + atcoSharePerPerson;
-            const targetSharePerPerson = householdSharePerPerson + utilitySharePerPerson;
-
             const upstairsTotalContribution = utilitySharePerPerson * 5; 
 
             // Update UI Summary Box
             document.getElementById('household-total').innerText = householdTotal.toFixed(2);
             document.getElementById('household-share').innerText = householdSharePerPerson.toFixed(2);
-            
             document.getElementById('shaw-total').innerText = shawTotal.toFixed(2);
             document.getElementById('shaw-share').innerText = shawSharePerPerson.toFixed(2);
-
             document.getElementById('enmax-total').innerText = enmaxTotal.toFixed(2);
             document.getElementById('enmax-share').innerText = enmaxSharePerPerson.toFixed(2);
-
             document.getElementById('atco-total').innerText = atcoTotal.toFixed(2);
             document.getElementById('atco-share').innerText = atcoSharePerPerson.toFixed(2);
-
             document.getElementById('utility-total').innerText = utilityTotal.toFixed(2);
             document.getElementById('utility-share').innerText = utilitySharePerPerson.toFixed(2);
             document.getElementById('upstairs-total').innerText = upstairsTotalContribution.toFixed(2);
 
-            // Populate Spending Breakdown Table
+            // 1. Populate Breakdown Table (Utilities & Rent Owed to Jaimin)
             const spendingBody = document.getElementById('spending-breakdown-list');
             spendingBody.innerHTML = '';
 
+            const landlordTransfersList = document.getElementById('landlord-transfers-list');
+            landlordTransfersList.innerHTML = '';
+
             mainHousehold.forEach(person => {
                 const hSpent = personHouseholdSpent[person] || 0;
-                const uSpent = personUtilitySpent[person] || 0;
-                const totalSpent = hSpent + uSpent;
+                const rentOwed = rentDistribution[person] || 0;
+                const totalDueJaimin = utilitySharePerPerson + rentOwed;
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><strong>${person}</strong></td>
                     <td>$${hSpent.toFixed(2)}</td>
-                    <td>$${uSpent.toFixed(2)}</td>
-                    <td><strong>$${totalSpent.toFixed(2)}</strong></td>
+                    <td>$${utilitySharePerPerson.toFixed(2)}</td>
+                    <td>$${rentOwed.toFixed(2)}</td>
+                    <td class="landlord-pay"><strong>$${totalDueJaimin.toFixed(2)}</strong></td>
                 `;
                 spendingBody.appendChild(row);
+
+                // Populate Landlord Transfer List
+                const li = document.createElement('li');
+                li.className = 'landlord-transfer';
+                li.innerHTML = `<strong>${person}</strong> transfers to <strong>Jaimin (Landlord)</strong>: <span style="color:#8e44ad; font-weight:bold;">$${totalDueJaimin.toFixed(2)}</span> ($${rentOwed.toFixed(2)} Rent + $${utilitySharePerPerson.toFixed(2)} Utilities)`;
+                landlordTransfersList.appendChild(li);
             });
 
+            // 2. Household Internal Settlement (4-Way Groceries/Expenses Only)
             let debtors = [];
             let creditors = [];
 
@@ -545,8 +566,8 @@
             settlementBody.innerHTML = '';
 
             mainHousehold.forEach(person => {
-                const paid = (personHouseholdSpent[person] || 0) + (personUtilitySpent[person] || 0);
-                const net = paid - targetSharePerPerson;
+                const paid = personHouseholdSpent[person] || 0;
+                const net = paid - householdSharePerPerson;
                 const statusClass = net >= 0 ? 'gets-back' : 'owes';
                 const statusText = net >= 0 
                     ? `Gets back $${net.toFixed(2)}` 
@@ -559,7 +580,7 @@
                 row.innerHTML = `
                     <td><strong>${person}</strong></td>
                     <td>$${paid.toFixed(2)}</td>
-                    <td>$${targetSharePerPerson.toFixed(2)}</td>
+                    <td>$${householdSharePerPerson.toFixed(2)}</td>
                     <td class="${statusClass}">${net > 0 ? '+' : ''}$${net.toFixed(2)}</td>
                     <td class="${statusClass}">${statusText}</td>
                 `;
@@ -570,7 +591,7 @@
             transfersList.innerHTML = '';
 
             if (debtors.length === 0 && creditors.length === 0) {
-                transfersList.innerHTML = '<li>Everyone is settled up equally!</li>';
+                transfersList.innerHTML = '<li>Everyone is settled up equally for household expenses!</li>';
             } else {
                 let dIndex = 0, cIndex = 0;
                 while (dIndex < debtors.length && cIndex < creditors.length) {
