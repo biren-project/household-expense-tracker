@@ -110,10 +110,6 @@
             border-radius: 0 4px 4px 0;
             font-size: 15px;
         }
-        .payment-list li.landlord-transfer {
-            background: #f4ecf7;
-            border-left: 4px solid #8e44ad;
-        }
         .no-access {
             text-align: center;
             padding: 40px;
@@ -211,7 +207,6 @@
                 <thead>
                     <tr>
                         <th>Person</th>
-                        <th>Household Spent</th>
                         <th>Utility Share</th>
                         <th>Rent Share</th>
                         <th>Total Payable to Jaimin</th>
@@ -224,17 +219,12 @@
 
             <br>
 
-            <h3>2. Separate Transfers to Jaimin (Rent + Utilities)</h3>
-            <ul id="landlord-transfers-list" class="payment-list">
-                <!-- Landlord direct payments populate here -->
-            </ul>
-
-            <h3>3. Internal Household Transfers (Groceries & Shared Expenses)</h3>
+            <h3>2. Internal Household Transfers (Groceries & Shared Expenses)</h3>
             <ul id="transfers-list" class="payment-list">
                 <!-- Direct transfer steps populate here -->
             </ul>
 
-            <h3>4. Individual Balances & Settlement Summary</h3>
+            <h3>3. Individual Balances & Settlement Summary</h3>
             <table>
                 <thead>
                     <tr>
@@ -310,7 +300,7 @@
             } else {
                 document.getElementById('role-badge').innerHTML = '<span class="user-badge">PERSONAL ACCOUNT</span>';
                 
-                // CRITICAL FIX: Completely remove utility options from DOM for regular users
+                // Completely remove utility options from DOM for regular users
                 document.querySelectorAll('.utility-option').forEach(opt => opt.remove());
             }
 
@@ -532,32 +522,22 @@
             document.getElementById('utility-share').innerText = utilitySharePerPerson.toFixed(2);
             document.getElementById('upstairs-total').innerText = upstairsTotalContribution.toFixed(2);
 
-            // Populate Breakdown Table
+            // Populate Breakdown Table (Payable to Jaimin - Without Household Spent)
             const spendingBody = document.getElementById('spending-breakdown-list');
             spendingBody.innerHTML = '';
 
-            const landlordTransfersList = document.getElementById('landlord-transfers-list');
-            landlordTransfersList.innerHTML = '';
-
             mainHousehold.forEach(person => {
-                const hSpent = personHouseholdSpent[person] || 0;
                 const rentOwed = rentDistribution[person] || 0;
                 const totalDueJaimin = utilitySharePerPerson + rentOwed;
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><strong>${person}</strong></td>
-                    <td>$${hSpent.toFixed(2)}</td>
                     <td>$${utilitySharePerPerson.toFixed(2)}</td>
                     <td>$${rentOwed.toFixed(2)}</td>
                     <td class="landlord-pay"><strong>$${totalDueJaimin.toFixed(2)}</strong></td>
                 `;
                 spendingBody.appendChild(row);
-
-                const li = document.createElement('li');
-                li.className = 'landlord-transfer';
-                li.innerHTML = `<strong>${person}</strong> transfers to <strong>Jaimin (Landlord)</strong>: <span style="color:#8e44ad; font-weight:bold;">$${totalDueJaimin.toFixed(2)}</span> ($${rentOwed.toFixed(2)} Rent + $${utilitySharePerPerson.toFixed(2)} Utilities)`;
-                landlordTransfersList.appendChild(li);
             });
 
             // Settlement Logic
