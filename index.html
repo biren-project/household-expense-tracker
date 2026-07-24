@@ -147,7 +147,7 @@
                     <option value="enmax" class="admin-option">Enmax Electricity (9-Way Split)</option>
                     <option value="atco" class="admin-option">Atco Gas (9-Way Split)</option>
                 </select>
-                <input type="text" id="description" placeholder="Description (e.g. Milk, Monthly Bill)" required>
+                <input type="text" id="description" placeholder="Description (e.g. Milk, Groceries)" required>
                 <input type="number" id="amount" placeholder="Amount ($)" step="0.01" min="0" required>
                 <button type="submit" id="submit-btn">Submit Expense</button>
             </form>
@@ -193,12 +193,29 @@
                 <p><strong>Upstairs Family Contribution (5/9th Utility Total):</strong> $<span id="upstairs-total">0.00</span></p>
             </div>
 
-            <h3>1. Direct Transfers (Who owes whom)</h3>
+            <h3>1. Spending Breakdown by Person (Total Paid Out of Pocket)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Person</th>
+                        <th>Household Spent</th>
+                        <th>Utility Spent</th>
+                        <th>Total Out-of-Pocket Spent</th>
+                    </tr>
+                </thead>
+                <tbody id="spending-breakdown-list">
+                    <!-- Spending breakdown renders here -->
+                </tbody>
+            </table>
+
+            <br>
+
+            <h3>2. Direct Transfers (Who owes whom)</h3>
             <ul id="transfers-list" class="payment-list">
                 <!-- Direct transfer steps populate here -->
             </ul>
 
-            <h3>2. Individual Balances</h3>
+            <h3>3. Individual Balances & Settlement</h3>
             <table>
                 <thead>
                     <tr>
@@ -237,6 +254,8 @@
         const urlParams = new URLSearchParams(window.location.search);
         const currentUser = urlParams.get('user');
         const currentRole = urlParams.get('role');
+        
+        // STRICT ADMIN CHECK
         const isAdmin = (currentUser === 'Biren' && currentRole === 'admin');
 
         // Validate user identity from URL
@@ -257,9 +276,9 @@
                 document.getElementById('role-badge').innerHTML = '<span class="user-badge">PERSONAL ACCOUNT</span>';
                 document.getElementById('log-title').innerText = `Your Submitted Expenses (${currentUser})`;
                 
-                // Hide Utility options for non-admin users
+                // REMOVE Utility options completely from the dropdown for non-admin users
                 const adminOptions = document.querySelectorAll('.admin-option');
-                adminOptions.forEach(opt => opt.style.display = 'none');
+                adminOptions.forEach(opt => opt.remove());
                 document.getElementById('category').value = 'household';
             }
 
@@ -313,9 +332,13 @@
             submitBtn.disabled = true;
 
             const date = document.getElementById('date').value;
-            const category = document.getElementById('category').value;
+            let category = document.getElementById('category').value;
             const description = document.getElementById('description').value;
             const amount = parseFloat(document.getElementById('amount').value);
+
+            if (!isAdmin) {
+                category = 'household';
+            }
 
             expenses.push({ id: Date.now(), date, category, paidBy: currentUser, description, amount });
             
@@ -414,7 +437,7 @@
             }
         }
 
-        // Admin Action: Calculate Settlement
+        // Admin Action: Calculate Settlement & Spending Summary
         function calculateSettlement() {
             if (!isAdmin) return;
 
@@ -423,11 +446,28 @@
             let enmaxTotal = 0;
             let atcoTotal = 0;
 
+            // Track individual spending out of pocket
+            const personHouseholdSpent = {};
+            const personUtilitySpent = {};
+            mainHousehold.forEach(person => {
+                personHouseholdSpent[person] = 0;
+                personUtilitySpent[person] = 0;
+            });
+
             expenses.forEach(item => {
-                if (item.category === 'shaw') shawTotal += item.amount;
-                else if (item.category === 'enmax') enmaxTotal += item.amount;
-                else if (item.category === 'atco') atcoTotal += item.amount;
-                else householdTotal += item.amount;
+                if (item.category === 'shaw') {
+                    shawTotal += item.amount;
+                    if (personUtilitySpent[item.paidBy] !== undefined) personUtilitySpent[item.paidBy] += item.amount;
+                } else if (item.category === 'enmax') {
+                    enmaxTotal += item.amount;
+                    if (personUtilitySpent[item.paidBy] !== undefined) personUtilitySpent[item.paidBy] += item.amount;
+                } else if (item.category === 'atco') {
+                    atcoTotal += item.amount;
+                    if (personUtilitySpent[item.paidBy] !== undefined) personUtilitySpent[item.paidBy] += item.amount;
+                } else {
+                    householdTotal += item.amount;
+                    if (personHouseholdSpent[item.paidBy] !== undefined) personHouseholdSpent[item.paidBy] += item.amount;
+                }
             });
 
             const utilityTotal = shawTotal + enmaxTotal + atcoTotal;
@@ -442,6 +482,7 @@
 
             const upstairsTotalContribution = utilitySharePerPerson * 5; 
 
+            // Update UI Summary Box
             document.getElementById('household-total').innerText = householdTotal.toFixed(2);
             document.getElementById('household-share').innerText = householdSharePerPerson.toFixed(2);
             
@@ -458,12 +499,23 @@
             document.getElementById('utility-share').innerText = utilitySharePerPerson.toFixed(2);
             document.getElementById('upstairs-total').innerText = upstairsTotalContribution.toFixed(2);
 
-            const paidTotals = {};
-            mainHousehold.forEach(person => paidTotals[person] = 0);
-            expenses.forEach(item => {
-                if (mainHousehold.includes(item.paidBy)) {
-                    paidTotals[item.paidBy] += item.amount;
-                }
+            // Populate Spending Breakdown Table
+            const spendingBody = document.getElementById('spending-breakdown-list');
+            spendingBody.innerHTML = '';
+
+            mainHousehold.forEach(person => {
+                const hSpent = personHouseholdSpent[person] || 0;
+                const uSpent = personUtilitySpent[person] || 0;
+                const totalSpent = hSpent + uSpent;
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${person}</strong></td>
+                    <td>$${hSpent.toFixed(2)}</td>
+                    <td>$${uSpent.toFixed(2)}</td>
+                    <td><strong>$${totalSpent.toFixed(2)}</strong></td>
+                `;
+                spendingBody.appendChild(row);
             });
 
             let debtors = [];
@@ -473,7 +525,7 @@
             settlementBody.innerHTML = '';
 
             mainHousehold.forEach(person => {
-                const paid = paidTotals[person];
+                const paid = (personHouseholdSpent[person] || 0) + (personUtilitySpent[person] || 0);
                 const net = paid - targetSharePerPerson;
                 const statusClass = net >= 0 ? 'gets-back' : 'owes';
                 const statusText = net >= 0 
