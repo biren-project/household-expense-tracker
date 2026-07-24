@@ -101,6 +101,8 @@
         .owes { color: #c0392b; font-weight: bold; }
         .gets-back { color: #27ae60; font-weight: bold; }
         .landlord-pay { color: #8e44ad; font-weight: bold; }
+        .val-out-of-pocket { color: #2980b9; font-weight: bold; }
+        .val-share-owed { color: #d35400; font-weight: bold; }
         .payment-list { list-style: none; padding: 0; }
         .payment-list li {
             background: #eef7fe;
@@ -229,8 +231,8 @@
                 <thead>
                     <tr>
                         <th>Person</th>
-                        <th style="color: #2980b9; font-weight: bold;">Household Paid Out of Pocket</th>
-                        <th style="color: #d35400; font-weight: bold;">Household Share Owed</th>
+                        <th>Household Paid Out of Pocket</th>
+                        <th>Household Share Owed</th>
                         <th>Household Net Balance</th>
                         <th>Status</th>
                     </tr>
@@ -561,8 +563,8 @@
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><strong>${person}</strong></td>
-                    <td>$${paid.toFixed(2)}</td>
-                    <td>$${householdSharePerPerson.toFixed(2)}</td>
+                    <td class="val-out-of-pocket">$${paid.toFixed(2)}</td>
+                    <td class="val-share-owed">$${householdSharePerPerson.toFixed(2)}</td>
                     <td class="${statusClass}">${net > 0 ? '+' : ''}$${net.toFixed(2)}</td>
                     <td class="${statusClass}">${statusText}</td>
                 `;
