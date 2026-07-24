@@ -115,6 +115,11 @@
             border-radius: 6px;
             margin-bottom: 15px;
         }
+        .sync-status {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -144,8 +149,9 @@
                 </select>
                 <input type="text" id="description" placeholder="Description (e.g. Milk, Monthly Bill)" required>
                 <input type="number" id="amount" placeholder="Amount ($)" step="0.01" min="0" required>
-                <button type="submit">Submit Expense</button>
+                <button type="submit" id="submit-btn">Submit Expense</button>
             </form>
+            <div id="sync-status" class="sync-status">Connecting to Cloud Data Sync...</div>
         </div>
 
         <!-- Logged Expenses View -->
@@ -217,11 +223,15 @@
     </div>
 
     <script>
+        // --- JSONBIN.IO CONFIGURATION ---
+        const JSONBIN_BIN_ID = "6a63d85cf5f4af5e29bd604c";
+        const JSONBIN_MASTER_KEY = "$2a$10$aGsMHmzawGqngUYQk4byNO6eOgVEFFObkr5LyuKv1hQ73QECFOWN2";
+
         // Main household group (4 members)
         const mainHousehold = ["Biren", "Akshay", "Kunjalbhabhi", "Biju"]; 
-        const TOTAL_UTILITY_RESIDENTS = 9; // Divided 9 ways behind the scenes
+        const TOTAL_UTILITY_RESIDENTS = 9; 
 
-        let expenses = JSON.parse(localStorage.getItem('household_expenses')) || [];
+        let expenses = [];
 
         // Parse URL Parameters
         const urlParams = new URLSearchParams(window.location.search);
@@ -247,21 +257,60 @@
                 document.getElementById('role-badge').innerHTML = '<span class="user-badge">PERSONAL ACCOUNT</span>';
                 document.getElementById('log-title').innerText = `Your Submitted Expenses (${currentUser})`;
                 
-                // HIDE Utility options for non-admin users
+                // Hide Utility options for non-admin users
                 const adminOptions = document.querySelectorAll('.admin-option');
                 adminOptions.forEach(opt => opt.style.display = 'none');
                 document.getElementById('category').value = 'household';
             }
 
-            // Set default date to today
             document.getElementById('date').valueAsDate = new Date();
 
-            renderExpenses();
+            // Fetch latest expenses from cloud database
+            fetchExpensesFromCloud();
+        }
+
+        // FETCH EXPENSES FROM CLOUD
+        async function fetchExpensesFromCloud() {
+            document.getElementById('sync-status').innerText = 'Syncing cloud data...';
+            try {
+                const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+                    headers: { 'X-Master-Key': JSONBIN_MASTER_KEY }
+                });
+                const data = await response.json();
+                expenses = data.record.expenses || [];
+                document.getElementById('sync-status').innerText = 'Connected & Synced';
+                renderExpenses();
+            } catch (err) {
+                console.error('Error fetching cloud data:', err);
+                document.getElementById('sync-status').innerText = 'Sync failed. Check internet connection.';
+            }
+        }
+
+        // SAVE EXPENSES TO CLOUD
+        async function saveExpensesToCloud() {
+            document.getElementById('sync-status').innerText = 'Saving to cloud...';
+            try {
+                await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': JSONBIN_MASTER_KEY
+                    },
+                    body: JSON.stringify({ expenses: expenses })
+                });
+                document.getElementById('sync-status').innerText = 'Saved to Cloud';
+            } catch (err) {
+                console.error('Error saving to cloud:', err);
+                document.getElementById('sync-status').innerText = 'Failed to save to cloud.';
+            }
         }
 
         // Handle Add Expense
-        document.getElementById('expense-form').addEventListener('submit', function(e) {
+        document.getElementById('expense-form').addEventListener('submit', async function(e) {
             e.preventDefault();
+
+            const submitBtn = document.getElementById('submit-btn');
+            submitBtn.disabled = true;
 
             const date = document.getElementById('date').value;
             const category = document.getElementById('category').value;
@@ -269,11 +318,13 @@
             const amount = parseFloat(document.getElementById('amount').value);
 
             expenses.push({ id: Date.now(), date, category, paidBy: currentUser, description, amount });
-            localStorage.setItem('household_expenses', JSON.stringify(expenses));
+            
+            await saveExpensesToCloud();
 
             document.getElementById('description').value = '';
             document.getElementById('amount').value = '';
             
+            submitBtn.disabled = false;
             renderExpenses();
         });
 
@@ -325,7 +376,7 @@
         }
 
         // Admin Action: Edit Expense
-        function editExpense(id) {
+        async function editExpense(id) {
             if (!isAdmin) return;
 
             const item = expenses.find(e => e.id === id);
@@ -346,24 +397,24 @@
             item.description = newDescription;
             item.amount = newAmount;
 
-            localStorage.setItem('household_expenses', JSON.stringify(expenses));
+            await saveExpensesToCloud();
             renderExpenses();
             document.getElementById('report-card').style.display = 'none';
         }
 
         // Admin Action: Delete Expense
-        function deleteExpense(id) {
+        async function deleteExpense(id) {
             if (!isAdmin) return;
 
             if (confirm("Delete this expense entry?")) {
                 expenses = expenses.filter(item => item.id !== id);
-                localStorage.setItem('household_expenses', JSON.stringify(expenses));
+                await saveExpensesToCloud();
                 renderExpenses();
                 document.getElementById('report-card').style.display = 'none';
             }
         }
 
-        // Admin Action: Calculate Settlement (Separate Utilities)
+        // Admin Action: Calculate Settlement
         function calculateSettlement() {
             if (!isAdmin) return;
 
@@ -381,18 +432,16 @@
 
             const utilityTotal = shawTotal + enmaxTotal + atcoTotal;
 
-            // Individual share calculations
-            const householdSharePerPerson = householdTotal / mainHousehold.length; // Divided by 4
-            const shawSharePerPerson = shawTotal / TOTAL_UTILITY_RESIDENTS;         // Divided by 9
-            const enmaxSharePerPerson = enmaxTotal / TOTAL_UTILITY_RESIDENTS;       // Divided by 9
-            const atcoSharePerPerson = atcoTotal / TOTAL_UTILITY_RESIDENTS;         // Divided by 9
+            const householdSharePerPerson = householdTotal / mainHousehold.length; 
+            const shawSharePerPerson = shawTotal / TOTAL_UTILITY_RESIDENTS;         
+            const enmaxSharePerPerson = enmaxTotal / TOTAL_UTILITY_RESIDENTS;       
+            const atcoSharePerPerson = atcoTotal / TOTAL_UTILITY_RESIDENTS;         
 
             const utilitySharePerPerson = shawSharePerPerson + enmaxSharePerPerson + atcoSharePerPerson;
             const targetSharePerPerson = householdSharePerPerson + utilitySharePerPerson;
 
-            const upstairsTotalContribution = utilitySharePerPerson * 5; // 5 Upstairs members
+            const upstairsTotalContribution = utilitySharePerPerson * 5; 
 
-            // Update UI Totals Box
             document.getElementById('household-total').innerText = householdTotal.toFixed(2);
             document.getElementById('household-share').innerText = householdSharePerPerson.toFixed(2);
             
@@ -423,7 +472,6 @@
             const settlementBody = document.getElementById('settlement-list');
             settlementBody.innerHTML = '';
 
-            // Generate report ONLY for the 4 main people
             mainHousehold.forEach(person => {
                 const paid = paidTotals[person];
                 const net = paid - targetSharePerPerson;
@@ -446,7 +494,6 @@
                 settlementBody.appendChild(row);
             });
 
-            // Calculate Direct Transfers between the 4 main people
             const transfersList = document.getElementById('transfers-list');
             transfersList.innerHTML = '';
 
@@ -476,12 +523,12 @@
         }
 
         // Admin Action: Reset Data
-        function clearAllData() {
+        async function clearAllData() {
             if (!isAdmin) return;
 
-            if (confirm("Admin Warning: Clear all recorded expenses for this month?")) {
-                localStorage.removeItem('household_expenses');
+            if (confirm("Admin Warning: Clear all recorded expenses for this month across all devices?")) {
                 expenses = [];
+                await saveExpensesToCloud();
                 renderExpenses();
                 document.getElementById('report-card').style.display = 'none';
             }
