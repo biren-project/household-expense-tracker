@@ -156,9 +156,9 @@
                 <select id="category" required>
                     <option value="household" id="opt-household" selected>General Household (4-Way Split)</option>
                     <!-- Landlord Jaimin & Admin Biren Only Options -->
-                    <option value="shaw" class="utility-option" style="display:none;">Shaw Internet (9-Way Split)</option>
-                    <option value="enmax" class="utility-option" style="display:none;">Enmax Electricity (9-Way Split)</option>
-                    <option value="atco" class="utility-option" style="display:none;">Atco Gas (9-Way Split)</option>
+                    <option value="shaw" class="utility-option">Shaw Internet (9-Way Split)</option>
+                    <option value="enmax" class="utility-option">Enmax Electricity (9-Way Split)</option>
+                    <option value="atco" class="utility-option">Atco Gas (9-Way Split)</option>
                 </select>
                 <input type="text" id="description" placeholder="Description (e.g. Milk, Groceries, Utility Bill)" required>
                 <input type="number" id="amount" placeholder="Amount ($)" step="0.01" min="0" required>
@@ -300,21 +300,18 @@
                 document.getElementById('clear-btn').style.display = 'block';
                 document.getElementById('calc-btn').style.display = 'block';
                 document.getElementById('actions-col').style.display = 'table-cell';
-                
-                // Admin can log both household expenses and utilities
-                document.querySelectorAll('.utility-option').forEach(opt => opt.style.display = 'block');
             } else if (isJaimin) {
                 document.getElementById('role-badge').innerHTML = '<span class="landlord-badge">LANDLORD / UTILITY MANAGER</span>';
                 
-                // Jaimin enters ONLY utilities
-                document.querySelectorAll('.utility-option').forEach(opt => opt.style.display = 'block');
-                document.getElementById('opt-household').remove(); // Hide household expense option
+                // Jaimin enters ONLY utilities -> remove household option
+                const optHousehold = document.getElementById('opt-household');
+                if (optHousehold) optHousehold.remove();
                 document.getElementById('category').value = 'shaw';
             } else {
                 document.getElementById('role-badge').innerHTML = '<span class="user-badge">PERSONAL ACCOUNT</span>';
                 
-                // Hide utility options for all regular users
-                document.querySelectorAll('.utility-option').forEach(opt => opt.style.display = 'none');
+                // CRITICAL FIX: Completely remove utility options from DOM for regular users
+                document.querySelectorAll('.utility-option').forEach(opt => opt.remove());
             }
 
             document.getElementById('date').valueAsDate = new Date();
@@ -371,7 +368,7 @@
             const description = document.getElementById('description').value;
             const amount = parseFloat(document.getElementById('amount').value);
 
-            // Strict backend check: Restrict utility submission to Admin or Jaimin only
+            // Backend validation safeguard
             if (['shaw', 'enmax', 'atco'].includes(category) && !isAdmin && !isJaimin) {
                 alert('Only Admin or Landlord can log utility expenses.');
                 submitBtn.disabled = false;
@@ -394,7 +391,6 @@
             const list = document.getElementById('expense-list');
             list.innerHTML = '';
 
-            // Everyone sees all expenses logged across the household & landlord
             const userExpenses = [...expenses];
 
             if (userExpenses.length === 0) {
@@ -478,7 +474,6 @@
         function calculateSettlement() {
             if (!isAdmin) return;
 
-            // --- Dynamic Date Range Report Title ---
             if (expenses.length > 0) {
                 const sortedExpenses = [...expenses].sort((a, b) => new Date(a.date) - new Date(b.date));
                 const startDateObj = new Date(sortedExpenses[0].date);
@@ -537,7 +532,7 @@
             document.getElementById('utility-share').innerText = utilitySharePerPerson.toFixed(2);
             document.getElementById('upstairs-total').innerText = upstairsTotalContribution.toFixed(2);
 
-            // 1. Populate Breakdown Table (Utilities & Rent Owed to Jaimin)
+            // Populate Breakdown Table
             const spendingBody = document.getElementById('spending-breakdown-list');
             spendingBody.innerHTML = '';
 
@@ -559,14 +554,13 @@
                 `;
                 spendingBody.appendChild(row);
 
-                // Populate Landlord Transfer List
                 const li = document.createElement('li');
                 li.className = 'landlord-transfer';
                 li.innerHTML = `<strong>${person}</strong> transfers to <strong>Jaimin (Landlord)</strong>: <span style="color:#8e44ad; font-weight:bold;">$${totalDueJaimin.toFixed(2)}</span> ($${rentOwed.toFixed(2)} Rent + $${utilitySharePerPerson.toFixed(2)} Utilities)`;
                 landlordTransfersList.appendChild(li);
             });
 
-            // 2. Household Internal Settlement (4-Way Groceries/Expenses Only)
+            // Settlement Logic
             let debtors = [];
             let creditors = [];
 
