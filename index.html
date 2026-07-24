@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Household Expense Tracker</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 850px;
+            margin: 30px auto;
+            padding: 20px;
+            background-color: #f4f6f8;
+            color: #333;
+        }
+        h1, h2, h3 { color: #1a252f; margin-top: 0; }
+        .card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        .user-banner {
+            background: #2c3e50;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .admin-badge {
+            background-color: #f39c12;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .user-badge {
+            background-color: #3498db;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .form-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        input, button {
+            padding: 10px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        input { flex: 1; min-width: 120px; }
+        button {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background-color: #219150; }
+        .btn-calc { background-color: #2980b9; }
+        .btn-calc:hover { background-color: #1f6391; }
+        .btn-clear { background-color: #e74c3c; float: right; }
+        .btn-clear:hover { background-color: #c0392b; }
+        .btn-action {
+            padding: 4px 8px;
+            font-size: 12px;
+            margin-right: 4px;
+        }
+        .btn-edit { background-color: #f39c12; }
+        .btn-delete { background-color: #e74c3c; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            text-align: left;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        th { background-color: #f8f9fa; }
+        .owes { color: #c0392b; font-weight: bold; }
+        .gets-back { color: #27ae60; font-weight: bold; }
+        .payment-list { list-style: none; padding: 0; }
+        .payment-list li {
+            background: #eef7fe;
+            border-left: 4px solid #2980b9;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 0 4px 4px 0;
+            font-size: 15px;
+        }
+        .no-access {
+            text-align: center;
+            padding: 40px;
+            background: #fff;
+            border-radius: 8px;
+            color: #e74c3c;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-container" style="display: none;">
+        <!-- User Identifier Banner -->
+        <div class="user-banner">
+            <div>
+                <strong>Welcome, <span id="display-name">User</span>!</strong>
+            </div>
+            <div id="role-badge"></div>
+        </div>
+
+        <h1>Household Expense Tracker</h1>
+
+        <!-- Add Expense Form -->
+        <div class="card">
+            <h2>Submit New Expense</h2>
+            <form id="expense-form" class="form-group">
+                <input type="date" id="date" required>
+                <input type="text" id="description" placeholder="Description (e.g. Groceries)" required>
+                <input type="number" id="amount" placeholder="Amount ($)" step="0.01" min="0" required>
+                <button type="submit">Submit Expense</button>
+            </form>
+        </div>
+
+        <!-- Logged Expenses View -->
+        <div class="card">
+            <button id="clear-btn" class="btn-clear" onclick="clearAllData()" style="display: none;">Reset / Clear All</button>
+            <h2 id="log-title">Logged Expenses</h2>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Paid By</th>
+                        <th>Description</th>
+                        <th>Amount ($)</th>
+                        <th id="actions-col" style="display: none;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="expense-list">
+                    <!-- Expenses render here -->
+                </tbody>
+            </table>
+            <br>
+            <button id="calc-btn" class="btn-calc" onclick="calculateSettlement()" style="display: none;">Calculate Monthly Settlement</button>
+        </div>
+
+        <!-- Monthly Settlement Report (Admin Only) -->
+        <div class="card" id="report-card" style="display: none;">
+            <h2>Monthly Settlement Report</h2>
+            <p><strong>Total Household Spending:</strong> $<span id="total-expenses">0.00</span></p>
+            <p><strong>Equal Share Per Person (5 People):</strong> $<span id="per-person-share">0.00</span></p>
+
+            <h3>1. Direct Transfers (Who owes whom)</h3>
+            <ul id="transfers-list" class="payment-list">
+                <!-- Direct transfer steps populate here -->
+            </ul>
+
+            <h3>2. Individual Balances</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Person</th>
+                        <th>Total Paid</th>
+                        <th>Net Balance</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="settlement-list">
+                    <!-- Balance summaries -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Error Screen for missing/invalid link -->
+    <div id="error-screen" class="no-access card" style="display: none;">
+        <h2>Invalid Access Link</h2>
+        <p>Please use your personalized link to access the expense tracker.</p>
+    </div>
+
+    <script>
+        const people = ["Biren", "Akshay", "Kunjalbhabhi", "Biju", "Manali"];
+        let expenses = JSON.parse(localStorage.getItem('household_expenses')) || [];
+
+        // Parse URL Parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentUser = urlParams.get('user');
+        const currentRole = urlParams.get('role');
+        const isAdmin = (currentUser === 'Biren' && currentRole === 'admin');
+
+        // Validate user identity from URL
+        if (!currentUser || !people.includes(currentUser)) {
+            document.getElementById('error-screen').style.display = 'block';
+        } else {
+            document.getElementById('app-container').style.display = 'block';
+            document.getElementById('display-name').innerText = currentUser;
+            
+            // Set Role Badge
+            document.getElementById('role-badge').innerHTML = isAdmin 
+                ? '<span class="admin-badge">ADMIN MODE</span>' 
+                : '<span class="user-badge">PERSONAL ACCOUNT</span>';
+
+            // Show Admin-only controls
+            if (isAdmin) {
+                document.getElementById('clear-btn').style.display = 'block';
+                document.getElementById('calc-btn').style.display = 'block';
+                document.getElementById('actions-col').style.display = 'table-cell';
+                document.getElementById('log-title').innerText = 'All Logged Expenses (Master Log)';
+            } else {
+                document.getElementById('log-title').innerText = `Your Submitted Expenses (${currentUser})`;
+            }
+
+            // Set default date to today
+            document.getElementById('date').valueAsDate = new Date();
+
+            renderExpenses();
+        }
+
+        // Handle Add Expense
+        document.getElementById('expense-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const date = document.getElementById('date').value;
+            const description = document.getElementById('description').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+
+            expenses.push({ id: Date.now(), date, paidBy: currentUser, description, amount });
+            localStorage.setItem('household_expenses', JSON.stringify(expenses));
+
+            document.getElementById('description').value = '';
+            document.getElementById('amount').value = '';
+            
+            renderExpenses();
+        });
+
+        // Render Expenses
+        function renderExpenses() {
+            const list = document.getElementById('expense-list');
+            list.innerHTML = '';
+
+            // Standard users only see their own expenses; Admin sees all
+            const userExpenses = isAdmin 
+                ? expenses 
+                : expenses.filter(item => item.paidBy === currentUser);
+
+            if (userExpenses.length === 0) {
+                const colSpan = isAdmin ? 5 : 4;
+                list.innerHTML = `<tr><td colspan="${colSpan}">No expenses recorded yet.</td></tr>`;
+                return;
+            }
+
+            userExpenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            userExpenses.forEach(item => {
+                const row = document.createElement('tr');
+                
+                let actionsCell = '';
+                if (isAdmin) {
+                    actionsCell = `
+                        <td>
+                            <button class="btn-action btn-edit" onclick="editExpense(${item.id})">Edit</button>
+                            <button class="btn-action btn-delete" onclick="deleteExpense(${item.id})">Delete</button>
+                        </td>
+                    `;
+                }
+
+                row.innerHTML = `
+                    <td>${item.date}</td>
+                    <td><strong>${item.paidBy}</strong></td>
+                    <td>${item.description}</td>
+                    <td>$${item.amount.toFixed(2)}</td>
+                    ${actionsCell}
+                `;
+                list.appendChild(row);
+            });
+        }
+
+        // Admin Action: Edit Expense
+        function editExpense(id) {
+            if (!isAdmin) return;
+
+            const item = expenses.find(e => e.id === id);
+            if (!item) return;
+
+            const newDescription = prompt("Edit Description:", item.description);
+            if (newDescription === null) return;
+
+            const newAmountStr = prompt("Edit Amount ($):", item.amount);
+            if (newAmountStr === null) return;
+
+            const newAmount = parseFloat(newAmountStr);
+            if (isNaN(newAmount) || newAmount <= 0) {
+                alert("Please enter a valid amount.");
+                return;
+            }
+
+            item.description = newDescription;
+            item.amount = newAmount;
+
+            localStorage.setItem('household_expenses', JSON.stringify(expenses));
+            renderExpenses();
+            document.getElementById('report-card').style.display = 'none';
+        }
+
+        // Admin Action: Delete Expense
+        function deleteExpense(id) {
+            if (!isAdmin) return;
+
+            if (confirm("Delete this expense entry?")) {
+                expenses = expenses.filter(item => item.id !== id);
+                localStorage.setItem('household_expenses', JSON.stringify(expenses));
+                renderExpenses();
+                document.getElementById('report-card').style.display = 'none';
+            }
+        }
+
+        // Admin Action: Calculate Monthly Report
+        function calculateSettlement() {
+            if (!isAdmin) return;
+
+            const totalAmount = expenses.reduce((sum, item) => sum + item.amount, 0);
+            const share = totalAmount / people.length;
+
+            const paidTotals = {};
+            people.forEach(person => paidTotals[person] = 0);
+            expenses.forEach(item => paidTotals[item.paidBy] += item.amount);
+
+            document.getElementById('total-expenses').innerText = totalAmount.toFixed(2);
+            document.getElementById('per-person-share').innerText = share.toFixed(2);
+
+            let debtors = [];
+            let creditors = [];
+
+            const settlementBody = document.getElementById('settlement-list');
+            settlementBody.innerHTML = '';
+
+            people.forEach(person => {
+                const paid = paidTotals[person];
+                const net = paid - share;
+                const statusClass = net >= 0 ? 'gets-back' : 'owes';
+                const statusText = net >= 0 
+                    ? `Gets back $${net.toFixed(2)}` 
+                    : `Owes $${Math.abs(net).toFixed(2)}`;
+
+                if (net < -0.01) debtors.push({ person, amount: Math.abs(net) });
+                if (net > 0.01) creditors.push({ person, amount: net });
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${person}</strong></td>
+                    <td>$${paid.toFixed(2)}</td>
+                    <td class="${statusClass}">${net > 0 ? '+' : ''}$${net.toFixed(2)}</td>
+                    <td class="${statusClass}">${statusText}</td>
+                `;
+                settlementBody.appendChild(row);
+            });
+
+            // Calculate Direct Transfers
+            const transfersList = document.getElementById('transfers-list');
+            transfersList.innerHTML = '';
+
+            if (debtors.length === 0 && creditors.length === 0) {
+                transfersList.innerHTML = '<li>Everyone is settled up equally!</li>';
+            } else {
+                let dIndex = 0, cIndex = 0;
+                while (dIndex < debtors.length && cIndex < creditors.length) {
+                    let debtor = debtors[dIndex];
+                    let creditor = creditors[cIndex];
+
+                    let transferAmount = Math.min(debtor.amount, creditor.amount);
+
+                    const li = document.createElement('li');
+                    li.innerHTML = `<strong>${debtor.person}</strong> owes <strong>${creditor.person}</strong>: <span style="color:#27ae60; font-weight:bold;">$${transferAmount.toFixed(2)}</span>`;
+                    transfersList.appendChild(li);
+
+                    debtor.amount -= transferAmount;
+                    creditor.amount -= transferAmount;
+
+                    if (debtor.amount < 0.01) dIndex++;
+                    if (creditor.amount < 0.01) cIndex++;
+                }
+            }
+
+            document.getElementById('report-card').style.display = 'block';
+        }
+
+        // Admin Action: Reset Data
+        function clearAllData() {
+            if (!isAdmin) return;
+
+            if (confirm("Admin Warning: Clear all recorded expenses for this month?")) {
+                localStorage.removeItem('household_expenses');
+                expenses = [];
+                renderExpenses();
+                document.getElementById('report-card').style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
