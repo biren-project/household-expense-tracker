@@ -207,6 +207,7 @@
                 <thead>
                     <tr>
                         <th>Person</th>
+                        <th>Household Paid Out of Pocket</th>
                         <th>Utility Share</th>
                         <th>Rent Share</th>
                         <th>Total Payable to Jaimin</th>
@@ -522,17 +523,19 @@
             document.getElementById('utility-share').innerText = utilitySharePerPerson.toFixed(2);
             document.getElementById('upstairs-total').innerText = upstairsTotalContribution.toFixed(2);
 
-            // Populate Breakdown Table (Payable to Jaimin - Without Household Spent)
+            // Populate Breakdown Table
             const spendingBody = document.getElementById('spending-breakdown-list');
             spendingBody.innerHTML = '';
 
             mainHousehold.forEach(person => {
+                const hSpent = personHouseholdSpent[person] || 0;
                 const rentOwed = rentDistribution[person] || 0;
                 const totalDueJaimin = utilitySharePerPerson + rentOwed;
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><strong>${person}</strong></td>
+                    <td>$${hSpent.toFixed(2)}</td>
                     <td>$${utilitySharePerPerson.toFixed(2)}</td>
                     <td>$${rentOwed.toFixed(2)}</td>
                     <td class="landlord-pay"><strong>$${totalDueJaimin.toFixed(2)}</strong></td>
