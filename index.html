@@ -207,7 +207,6 @@
                 <thead>
                     <tr>
                         <th>Person</th>
-                        <th>Household Paid Out of Pocket</th>
                         <th>Utility Share</th>
                         <th>Rent Share</th>
                         <th>Total Payable to Jaimin</th>
@@ -230,8 +229,8 @@
                 <thead>
                     <tr>
                         <th>Person</th>
-                        <th>Household Paid</th>
-                        <th>Household Share Owed</th>
+                        <th style="color: #2980b9; font-weight: bold;">Household Paid Out of Pocket</th>
+                        <th style="color: #d35400; font-weight: bold;">Household Share Owed</th>
                         <th>Household Net Balance</th>
                         <th>Status</th>
                     </tr>
@@ -528,14 +527,12 @@
             spendingBody.innerHTML = '';
 
             mainHousehold.forEach(person => {
-                const hSpent = personHouseholdSpent[person] || 0;
                 const rentOwed = rentDistribution[person] || 0;
                 const totalDueJaimin = utilitySharePerPerson + rentOwed;
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><strong>${person}</strong></td>
-                    <td>$${hSpent.toFixed(2)}</td>
                     <td>$${utilitySharePerPerson.toFixed(2)}</td>
                     <td>$${rentOwed.toFixed(2)}</td>
                     <td class="landlord-pay"><strong>$${totalDueJaimin.toFixed(2)}</strong></td>
