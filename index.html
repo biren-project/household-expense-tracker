@@ -155,10 +155,10 @@
                 <input type="date" id="date" required>
                 <select id="category" required>
                     <option value="household" id="opt-household" selected>General Household (4-Way Split)</option>
-                    <!-- Landlord Jaimin Only Options -->
-                    <option value="shaw" class="jaimin-option" style="display:none;">Shaw Internet (9-Way Split)</option>
-                    <option value="enmax" class="jaimin-option" style="display:none;">Enmax Electricity (9-Way Split)</option>
-                    <option value="atco" class="jaimin-option" style="display:none;">Atco Gas (9-Way Split)</option>
+                    <!-- Landlord Jaimin & Admin Biren Only Options -->
+                    <option value="shaw" class="utility-option" style="display:none;">Shaw Internet (9-Way Split)</option>
+                    <option value="enmax" class="utility-option" style="display:none;">Enmax Electricity (9-Way Split)</option>
+                    <option value="atco" class="utility-option" style="display:none;">Atco Gas (9-Way Split)</option>
                 </select>
                 <input type="text" id="description" placeholder="Description (e.g. Milk, Groceries, Utility Bill)" required>
                 <input type="number" id="amount" placeholder="Amount ($)" step="0.01" min="0" required>
@@ -300,15 +300,21 @@
                 document.getElementById('clear-btn').style.display = 'block';
                 document.getElementById('calc-btn').style.display = 'block';
                 document.getElementById('actions-col').style.display = 'table-cell';
+                
+                // Admin can log both household expenses and utilities
+                document.querySelectorAll('.utility-option').forEach(opt => opt.style.display = 'block');
             } else if (isJaimin) {
                 document.getElementById('role-badge').innerHTML = '<span class="landlord-badge">LANDLORD / UTILITY MANAGER</span>';
                 
                 // Jaimin enters ONLY utilities
-                document.querySelectorAll('.jaimin-option').forEach(opt => opt.style.display = 'block');
+                document.querySelectorAll('.utility-option').forEach(opt => opt.style.display = 'block');
                 document.getElementById('opt-household').remove(); // Hide household expense option
                 document.getElementById('category').value = 'shaw';
             } else {
                 document.getElementById('role-badge').innerHTML = '<span class="user-badge">PERSONAL ACCOUNT</span>';
+                
+                // Hide utility options for all regular users
+                document.querySelectorAll('.utility-option').forEach(opt => opt.style.display = 'none');
             }
 
             document.getElementById('date').valueAsDate = new Date();
@@ -365,9 +371,11 @@
             const description = document.getElementById('description').value;
             const amount = parseFloat(document.getElementById('amount').value);
 
-            // Restrict categories per role
-            if (!isAdmin && !isJaimin) {
-                category = 'household';
+            // Strict backend check: Restrict utility submission to Admin or Jaimin only
+            if (['shaw', 'enmax', 'atco'].includes(category) && !isAdmin && !isJaimin) {
+                alert('Only Admin or Landlord can log utility expenses.');
+                submitBtn.disabled = false;
+                return;
             }
 
             expenses.push({ id: Date.now(), date, category, paidBy: currentUser, description, amount });
