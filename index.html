@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>253 Herron Mews Main Floor Household Expense Tracker</title>
+    <title>253 Herron Mews Basement Household Expense Tracker</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 850px;
+            max-width: 900px;
             margin: 30px auto;
             padding: 20px;
             background-color: #f4f6f8;
@@ -31,71 +31,32 @@
             justify-content: space-between;
             margin-bottom: 20px;
         }
-        .admin-badge {
-            background-color: #f39c12;
-            color: #fff;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: bold;
-        }
-        .user-badge {
-            background-color: #3498db;
-            color: #fff;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: bold;
-        }
-        .form-group {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-bottom: 15px;
-        }
-        input, select, button {
-            padding: 10px;
-            font-size: 14px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
+        .admin-badge { background-color: #f39c12; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .user-badge { background-color: #3498db; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .landlord-badge { background-color: #9b59b6; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .form-group { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; }
+        input, select, button { padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; }
         input, select { flex: 1; min-width: 120px; }
-        button {
-            background-color: #27ae60;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-weight: bold;
-        }
+        button { background-color: #27ae60; color: white; border: none; cursor: pointer; font-weight: bold; }
         button:hover { background-color: #219150; }
         .btn-calc { background-color: #2980b9; }
         .btn-calc:hover { background-color: #1f6391; }
         .btn-clear { background-color: #e74c3c; float: right; }
         .btn-clear:hover { background-color: #c0392b; }
-        .btn-action {
-            padding: 4px 8px;
-            font-size: 12px;
-            margin-right: 4px;
-        }
+        .btn-action { padding: 4px 8px; font-size: 12px; margin-right: 4px; }
         .btn-edit { background-color: #f39c12; }
         .btn-delete { background-color: #e74c3c; }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-        th, td {
-            text-align: left;
-            padding: 10px;
-            border-bottom: 1px solid #ddd;
-        }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; }
         th { background-color: #f8f9fa; }
-
-        /* --- STATUS COLUMN STYLING --- */
-        .owes { color: #c0392b; font-weight: bold; }        /* Bold Red */
-        .gets-back { color: #27ae60; font-weight: bold; }   /* Bold Green */
-        .settled-up { color: #7f8c8d; font-weight: bold; }   /* Muted Grey */
-
+        .owes { color: #c0392b; font-weight: bold; }
+        .gets-back { color: #27ae60; font-weight: bold; }
+        .settled { color: #7f8c8d; font-weight: bold; }
+        .landlord-pay { color: #8e44ad; font-weight: bold; }
+        .val-out-of-pocket { color: #2980b9; font-weight: bold; }
+        .val-share-owed { color: #d35400; font-weight: bold; }
+        .val-utility-share { color: #0e7490; font-weight: bold; }
+        .val-rent-share { color: #7e22ce; font-weight: bold; }
         .payment-list { list-style: none; padding: 0; }
         .payment-list li {
             background: #eef7fe;
@@ -105,89 +66,41 @@
             border-radius: 0 4px 4px 0;
             font-size: 15px;
         }
-        .no-access {
-            text-align: center;
-            padding: 40px;
-            background: #fff;
-            border-radius: 8px;
-            color: #e74c3c;
-        }
-        .summary-box {
-            background: #f8f9fa;
-            border: 1px solid #e2e8f0;
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 15px;
-        }
-        .sync-status {
-            font-size: 12px;
-            color: #7f8c8d;
-            margin-top: 5px;
-        }
-
-        /* --- STYLES FOR HIGHLIGHTED TABLE VALUES --- */
-        .val-household {
-            font-weight: bold;
-            color: #2e7d32;
-        }
-        .val-utility {
-            font-weight: bold;
-            color: #1976d2;
-        }
-        .val-paid {
-            font-weight: bold;
-            color: #6a1b9a;
-        }
-        .val-target {
-            font-weight: bold;
-            color: #e65100;
-        }
-        .val-net-positive {
-            font-weight: bold;
-            color: #27ae60; /* Bold Green */
-        }
-        .val-net-negative {
-            font-weight: bold;
-            color: #c0392b; /* Bold Red */
-        }
+        .no-access { text-align: center; padding: 40px; background: #fff; border-radius: 8px; color: #e74c3c; }
+        .summary-box { background: #f8f9fa; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
+        .sync-status { font-size: 12px; color: #7f8c8d; margin-top: 5px; }
     </style>
 </head>
 <body>
 
     <div id="app-container" style="display: none;">
-        <!-- User Identifier Banner -->
         <div class="user-banner">
-            <div>
-                <strong>Welcome, <span id="display-name">User</span>!</strong>
-            </div>
+            <div><strong>Welcome, <span id="display-name">User</span>!</strong></div>
             <div id="role-badge"></div>
         </div>
 
-        <h1>253 Herron Mews Main Floor Household Expense Tracker</h1>
+        <h1>253 Herron Mews Basement Household Expense Tracker</h1>
 
-        <!-- Add Expense Form -->
         <div class="card">
             <h2>Submit New Expense</h2>
             <form id="expense-form" class="form-group">
                 <input type="date" id="date" required>
                 <select id="category" required>
-                    <option value="household" selected>Upstairs General Household (5-Way Split)</option>
-                    <!-- Admin Only Utility Options -->
-                    <option value="shaw" class="admin-option">Shaw Internet (5-Way Split)</option>
-                    <option value="enmax" class="admin-option">Enmax Electricity (5-Way Split)</option>
-                    <option value="atco" class="admin-option">Atco Gas (5-Way Split)</option>
+                    <option value="household" id="opt-household" selected>General Household (4-Way Split)</option>
+                    <option value="shaw" class="utility-option">Shaw Internet (9-Way Split)</option>
+                    <option value="enmax" class="utility-option">Enmax Electricity (9-Way Split)</option>
+                    <option value="atco" class="utility-option">Atco Gas (9-Way Split)</option>
                 </select>
-                <input type="text" id="description" placeholder="Description (e.g. Groceries, Utility Bill)" required>
+                <input type="text" id="description" placeholder="Description (e.g. Milk, Groceries)" required>
                 <input type="number" id="amount" placeholder="Amount ($)" step="0.01" min="0" required>
                 <button type="submit" id="submit-btn">Submit Expense</button>
             </form>
             <div id="sync-status" class="sync-status">Connecting to Cloud Data Sync...</div>
         </div>
 
-        <!-- Logged Expenses View -->
         <div class="card">
             <button id="clear-btn" class="btn-clear" onclick="clearAllData()" style="display: none;">Reset / Clear All</button>
-            <h2 id="log-title">All Logged Expenses</h2>
+            <h2 id="log-title">All Logged Expenses (Master Log)</h2>
 
             <table>
                 <thead>
@@ -200,50 +113,45 @@
                         <th id="actions-col" style="display: none;">Actions</th>
                     </tr>
                 </thead>
-                <tbody id="expense-list">
-                    <!-- Expenses render here -->
-                </tbody>
+                <tbody id="expense-list"></tbody>
             </table>
             <br>
             <button id="calc-btn" class="btn-calc" onclick="calculateSettlement()" style="display: none;">Calculate Monthly Settlement</button>
         </div>
 
-        <!-- Monthly Settlement Report (Admin Only) -->
         <div class="card" id="report-card" style="display: none;">
-            <h2>Monthly Settlement Report (Main Floor Household)</h2>
+            <h2 id="report-title">Monthly Settlement Report (Basement)</h2>
             
             <div class="summary-box">
-                <p><strong>Total Upstairs Household (5-Way):</strong> $<span id="household-total">0.00</span> <em>($<span id="household-share">0.00</span> / person)</em></p>
+                <p><strong>Total General Household (4-Way):</strong> $<span id="household-total">0.00</span> <em>($<span id="household-share">0.00</span> / person)</em></p>
                 <hr style="border:0; border-top: 1px dashed #ccc; margin: 10px 0;">
                 <p>🌐 <strong>Shaw Internet Total:</strong> $<span id="shaw-total">0.00</span> <em>($<span id="shaw-share">0.00</span> / person)</em></p>
                 <p>⚡ <strong>Enmax Electricity Total:</strong> $<span id="enmax-total">0.00</span> <em>($<span id="enmax-share">0.00</span> / person)</em></p>
                 <p>🔥 <strong>Atco Gas Total:</strong> $<span id="atco-total">0.00</span> <em>($<span id="atco-share">0.00</span> / person)</em></p>
                 <hr style="border:0; border-top: 1px dashed #ccc; margin: 10px 0;">
-                <p><strong>Combined Utility Total (5-Way):</strong> $<span id="utility-total">0.00</span> <em>($<span id="utility-share">0.00</span> / person)</em></p>
+                <p><strong>Combined Utility Total (9-Way):</strong> $<span id="utility-total">0.00</span> <em>($<span id="utility-share">0.00</span> / person)</em></p>
+                <p><strong>Upstairs Family Contribution (5/9th Utility Total):</strong> $<span id="upstairs-total">0.00</span></p>
             </div>
 
-            <h3>1. Spending Breakdown by Person</h3>
+            <h3>1. Rent & Utility Breakdown (Payable to Jaimin)</h3>
             <table>
                 <thead>
                     <tr>
                         <th>Person</th>
-                        <th>Household Spent</th>
-                        <th>Utility Spent</th>
+                        <th>Utility Share</th>
+                        <th>Rent Share</th>
+                        <th>Total Payable to Jaimin</th>
                     </tr>
                 </thead>
-                <tbody id="spending-breakdown-list">
-                    <!-- Spending breakdown renders here -->
-                </tbody>
+                <tbody id="spending-breakdown-list"></tbody>
             </table>
 
             <br>
 
-            <h3>2. Direct Transfers (Who owes whom)</h3>
-            <ul id="transfers-list" class="payment-list">
-                <!-- Direct transfer steps populate here -->
-            </ul>
+            <h3>2. Internal Household Transfers (Groceries & Shared Expenses)</h3>
+            <ul id="transfers-list" class="payment-list"></ul>
 
-            <h3>3. Individual Balances & Settlement</h3>
+            <h3>3. Individual Balances & Settlement Summary</h3>
             <table>
                 <thead>
                     <tr>
@@ -254,72 +162,72 @@
                         <th>Status</th>
                     </tr>
                 </thead>
-                <tbody id="settlement-list">
-                    <!-- Balance summaries populate here -->
-                </tbody>
+                <tbody id="settlement-list"></tbody>
             </table>
         </div>
     </div>
 
-    <!-- Error Screen for missing/invalid link -->
     <div id="error-screen" class="no-access card" style="display: none;">
         <h2>Invalid Access Link</h2>
         <p>Please use your personalized link to access the expense tracker.</p>
     </div>
 
     <script>
-        // --- JSONBIN.IO CONFIGURATION ---
-        const JSONBIN_BIN_ID = "6a640bd8da38895dfe8c7903"; 
-        const JSONBIN_ACCESS_KEY = "$2a$10$yjx9LlbvtXkus3Ny9sNE3eSaqE1czDp..yFA6lBccOwHmG.KM7Vp2";
+        const JSONBIN_BIN_ID = "6a63d85cf5f4af5e29bd604c";
+        const JSONBIN_MASTER_KEY = "$2a$10$aGsMHmzawGqngUYQk4byNO6eOgVEFFObkr5LyuKv1hQ73QECFOWN2";
 
-        // Main floor household group (5 Members)
-        const upstairsHousehold = ["Jigneshkumar", "Jaimin", "Ishanibhabhi", "Viru", "Drashti"]; 
-        const TOTAL_UTILITY_RESIDENTS = 5; 
+        const mainHousehold = ["Biren", "Akshay", "Kunjalbhabhi", "Biju"]; 
+        const validUsers = ["Biren", "Akshay", "Kunjalbhabhi", "Biju", "Jaimin"];
+        const TOTAL_UTILITY_RESIDENTS = 9; 
+
+        const rentDistribution = {
+            "Biren": 650,
+            "Akshay": 650,
+            "Kunjalbhabhi": 0,
+            "Biju": 0
+        };
 
         let expenses = [];
 
-        // Parse URL Parameters
         const urlParams = new URLSearchParams(window.location.search);
-        const currentUser = urlParams.get('user');
+        const rawUser = urlParams.get('user');
         const currentRole = urlParams.get('role');
         
-        // STRICT ADMIN CHECK: Only Jigneshkumar with role=admin gets admin rights
-        const isAdmin = (currentUser === 'Jigneshkumar' && currentRole === 'admin');
+        const currentUser = validUsers.find(u => u.toLowerCase() === (rawUser || '').toLowerCase()) || rawUser;
 
-        // Validate user identity from URL
-        if (!currentUser || !upstairsHousehold.includes(currentUser)) {
+        const isAdmin = (currentUser === 'Biren' && currentRole === 'admin');
+        const isJaimin = (currentUser === 'Jaimin');
+
+        if (!currentUser || !validUsers.includes(currentUser)) {
             document.getElementById('error-screen').style.display = 'block';
         } else {
             document.getElementById('app-container').style.display = 'block';
             document.getElementById('display-name').innerText = currentUser;
             
-            // Set Role Badge & Toggle Admin-only controls
             if (isAdmin) {
                 document.getElementById('role-badge').innerHTML = '<span class="admin-badge">ADMIN MODE</span>';
                 document.getElementById('clear-btn').style.display = 'block';
                 document.getElementById('calc-btn').style.display = 'block';
                 document.getElementById('actions-col').style.display = 'table-cell';
+            } else if (isJaimin) {
+                document.getElementById('role-badge').innerHTML = '<span class="landlord-badge">LANDLORD / UTILITY MANAGER</span>';
+                const optHousehold = document.getElementById('opt-household');
+                if (optHousehold) optHousehold.remove();
+                document.getElementById('category').value = 'shaw';
             } else {
                 document.getElementById('role-badge').innerHTML = '<span class="user-badge">PERSONAL ACCOUNT</span>';
-                
-                // REMOVE Utility options completely from the dropdown for non-admin users
-                const adminOptions = document.querySelectorAll('.admin-option');
-                adminOptions.forEach(opt => opt.remove());
-                document.getElementById('category').value = 'household';
+                document.querySelectorAll('.utility-option').forEach(opt => opt.remove());
             }
 
             document.getElementById('date').valueAsDate = new Date();
-
-            // Fetch latest expenses from cloud database
             fetchExpensesFromCloud();
         }
 
-        // FETCH EXPENSES FROM CLOUD
         async function fetchExpensesFromCloud() {
             document.getElementById('sync-status').innerText = 'Syncing cloud data...';
             try {
                 const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
-                    headers: { 'X-Access-Key': JSONBIN_ACCESS_KEY }
+                    headers: { 'X-Master-Key': JSONBIN_MASTER_KEY }
                 });
                 const data = await response.json();
                 expenses = data.record.expenses || [];
@@ -331,7 +239,6 @@
             }
         }
 
-        // SAVE EXPENSES TO CLOUD
         async function saveExpensesToCloud() {
             document.getElementById('sync-status').innerText = 'Saving to cloud...';
             try {
@@ -339,7 +246,7 @@
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Access-Key': JSONBIN_ACCESS_KEY
+                        'X-Master-Key': JSONBIN_MASTER_KEY
                     },
                     body: JSON.stringify({ expenses: expenses })
                 });
@@ -350,7 +257,6 @@
             }
         }
 
-        // Handle Add Expense
         document.getElementById('expense-form').addEventListener('submit', async function(e) {
             e.preventDefault();
 
@@ -362,12 +268,13 @@
             const description = document.getElementById('description').value;
             const amount = parseFloat(document.getElementById('amount').value);
 
-            if (!isAdmin) {
-                category = 'household';
+            if (['shaw', 'enmax', 'atco'].includes(category) && !isAdmin && !isJaimin) {
+                alert('Only Admin or Landlord can log utility expenses.');
+                submitBtn.disabled = false;
+                return;
             }
 
             expenses.push({ id: Date.now(), date, category, paidBy: currentUser, description, amount });
-            
             await saveExpensesToCloud();
 
             document.getElementById('description').value = '';
@@ -377,22 +284,22 @@
             renderExpenses();
         });
 
-        // Render Expenses Table (Visible to everyone)
         function renderExpenses() {
             const list = document.getElementById('expense-list');
             list.innerHTML = '';
 
-            if (expenses.length === 0) {
+            const userExpenses = [...expenses];
+
+            if (userExpenses.length === 0) {
                 const colSpan = isAdmin ? 6 : 5;
                 list.innerHTML = `<tr><td colspan="${colSpan}">No expenses recorded yet.</td></tr>`;
                 return;
             }
 
-            expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+            userExpenses.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-            expenses.forEach(item => {
+            userExpenses.forEach(item => {
                 const row = document.createElement('tr');
-                
                 let actionsCell = '';
                 if (isAdmin) {
                     actionsCell = `
@@ -403,10 +310,10 @@
                     `;
                 }
 
-                let categoryTag = '<span style="color:#2980b9;">Household (5-Way)</span>';
-                if (item.category === 'shaw') categoryTag = '<span style="color:#d35400; font-weight:bold;">Shaw Internet (5-Way)</span>';
-                if (item.category === 'enmax') categoryTag = '<span style="color:#f39c12; font-weight:bold;">Enmax Elec (5-Way)</span>';
-                if (item.category === 'atco') categoryTag = '<span style="color:#e74c3c; font-weight:bold;">Atco Gas (5-Way)</span>';
+                let categoryTag = '<span style="color:#2980b9;">Household (4-Way)</span>';
+                if (item.category === 'shaw') categoryTag = '<span style="color:#d35400; font-weight:bold;">Shaw Internet (9-Way)</span>';
+                if (item.category === 'enmax') categoryTag = '<span style="color:#f39c12; font-weight:bold;">Enmax Elec (9-Way)</span>';
+                if (item.category === 'atco') categoryTag = '<span style="color:#e74c3c; font-weight:bold;">Atco Gas (9-Way)</span>';
 
                 row.innerHTML = `
                     <td>${item.date}</td>
@@ -420,7 +327,6 @@
             });
         }
 
-        // Admin Action: Edit Expense
         async function editExpense(id) {
             if (!isAdmin) return;
 
@@ -447,7 +353,6 @@
             document.getElementById('report-card').style.display = 'none';
         }
 
-        // Admin Action: Delete Expense
         async function deleteExpense(id) {
             if (!isAdmin) return;
 
@@ -459,77 +364,71 @@
             }
         }
 
-        // Admin Action: Calculate Settlement & Spending Summary
         function calculateSettlement() {
             if (!isAdmin) return;
 
-            let householdTotal = 0;
-            let shawTotal = 0;
-            let enmaxTotal = 0;
-            let atcoTotal = 0;
+            if (expenses.length > 0) {
+                const sortedExpenses = [...expenses].sort((a, b) => new Date(a.date) - new Date(b.date));
+                const startDateObj = new Date(sortedExpenses[0].date);
+                const startDateStr = startDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const endDateObj = new Date();
+                const endDateStr = endDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                
+                const reportTitleElem = document.getElementById('report-title');
+                if (reportTitleElem) {
+                    reportTitleElem.innerText = `Household Expense Settlement Report (Basement) (${startDateStr} – ${endDateStr})`;
+                }
+            }
 
+            let householdTotal = 0, shawTotal = 0, enmaxTotal = 0, atcoTotal = 0;
             const personHouseholdSpent = {};
-            const personUtilitySpent = {};
-            upstairsHousehold.forEach(person => {
-                personHouseholdSpent[person] = 0;
-                personUtilitySpent[person] = 0;
-            });
+            mainHousehold.forEach(person => { personHouseholdSpent[person] = 0; });
 
             expenses.forEach(item => {
-                if (item.category === 'shaw') {
-                    shawTotal += item.amount;
-                    if (personUtilitySpent[item.paidBy] !== undefined) personUtilitySpent[item.paidBy] += item.amount;
-                } else if (item.category === 'enmax') {
-                    enmaxTotal += item.amount;
-                    if (personUtilitySpent[item.paidBy] !== undefined) personUtilitySpent[item.paidBy] += item.amount;
-                } else if (item.category === 'atco') {
-                    atcoTotal += item.amount;
-                    if (personUtilitySpent[item.paidBy] !== undefined) personUtilitySpent[item.paidBy] += item.amount;
-                } else {
+                if (item.category === 'shaw') shawTotal += item.amount;
+                else if (item.category === 'enmax') enmaxTotal += item.amount;
+                else if (item.category === 'atco') atcoTotal += item.amount;
+                else {
                     householdTotal += item.amount;
-                    if (personHouseholdSpent[item.paidBy] !== undefined) personHouseholdSpent[item.paidBy] += item.amount;
+                    const matchPerson = mainHousehold.find(p => p.toLowerCase() === (item.paidBy || '').toLowerCase());
+                    if (matchPerson) personHouseholdSpent[matchPerson] += item.amount;
                 }
             });
 
             const utilityTotal = shawTotal + enmaxTotal + atcoTotal;
-
-            const householdSharePerPerson = householdTotal / upstairsHousehold.length; 
+            const householdSharePerPerson = householdTotal / mainHousehold.length; 
             const shawSharePerPerson = shawTotal / TOTAL_UTILITY_RESIDENTS;         
             const enmaxSharePerPerson = enmaxTotal / TOTAL_UTILITY_RESIDENTS;       
             const atcoSharePerPerson = atcoTotal / TOTAL_UTILITY_RESIDENTS;         
 
             const utilitySharePerPerson = shawSharePerPerson + enmaxSharePerPerson + atcoSharePerPerson;
-            const targetSharePerPerson = householdSharePerPerson + utilitySharePerPerson;
+            const upstairsTotalContribution = utilitySharePerPerson * 5; 
 
-            // Update UI Summary Box
             document.getElementById('household-total').innerText = householdTotal.toFixed(2);
             document.getElementById('household-share').innerText = householdSharePerPerson.toFixed(2);
-            
             document.getElementById('shaw-total').innerText = shawTotal.toFixed(2);
             document.getElementById('shaw-share').innerText = shawSharePerPerson.toFixed(2);
-
             document.getElementById('enmax-total').innerText = enmaxTotal.toFixed(2);
             document.getElementById('enmax-share').innerText = enmaxSharePerPerson.toFixed(2);
-
             document.getElementById('atco-total').innerText = atcoTotal.toFixed(2);
             document.getElementById('atco-share').innerText = atcoSharePerPerson.toFixed(2);
-
             document.getElementById('utility-total').innerText = utilityTotal.toFixed(2);
             document.getElementById('utility-share').innerText = utilitySharePerPerson.toFixed(2);
+            document.getElementById('upstairs-total').innerText = upstairsTotalContribution.toFixed(2);
 
-            // Populate Spending Breakdown Table
             const spendingBody = document.getElementById('spending-breakdown-list');
             spendingBody.innerHTML = '';
 
-            upstairsHousehold.forEach(person => {
-                const hSpent = personHouseholdSpent[person] || 0;
-                const uSpent = personUtilitySpent[person] || 0;
+            mainHousehold.forEach(person => {
+                const rentOwed = rentDistribution[person] || 0;
+                const totalDueJaimin = utilitySharePerPerson + rentOwed;
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><strong>${person}</strong></td>
-                    <td class="val-household">$${hSpent.toFixed(2)}</td>
-                    <td class="val-utility">$${uSpent.toFixed(2)}</td>
+                    <td class="val-utility-share">$${utilitySharePerPerson.toFixed(2)}</td>
+                    <td class="val-rent-share">$${rentOwed.toFixed(2)}</td>
+                    <td class="landlord-pay"><strong>$${totalDueJaimin.toFixed(2)}</strong></td>
                 `;
                 spendingBody.appendChild(row);
             });
@@ -540,39 +439,32 @@
             const settlementBody = document.getElementById('settlement-list');
             settlementBody.innerHTML = '';
 
-            upstairsHousehold.forEach(person => {
-                const paid = (personHouseholdSpent[person] || 0) + (personUtilitySpent[person] || 0);
-                const net = paid - targetSharePerPerson;
-                
-                const isPositive = net > 0.0001;
-                const isNegative = net < -0.0001;
+            mainHousehold.forEach(person => {
+                const paid = personHouseholdSpent[person] || 0;
+                const net = paid - householdSharePerPerson;
 
-                // Net Balance Cell Styling
-                let netClass = '';
-                if (isPositive) netClass = 'val-net-positive';
-                else if (isNegative) netClass = 'val-net-negative';
+                let statusClass = 'settled';
+                let statusText = 'Settled ($0.00)';
+                let formattedNet = `$0.00`;
 
-                // Status Cell Text & Color Styling based on Net Balance
-                let statusClass = 'settled-up';
-                let statusText = 'Gets back $0.00';
-
-                if (isPositive) {
+                if (net > 0.005) {
                     statusClass = 'gets-back';
                     statusText = `Gets back $${net.toFixed(2)}`;
-                } else if (isNegative) {
+                    formattedNet = `+$${net.toFixed(2)}`;
+                    creditors.push({ person, amount: net });
+                } else if (net < -0.005) {
                     statusClass = 'owes';
                     statusText = `Owes $${Math.abs(net).toFixed(2)}`;
+                    formattedNet = `-$${Math.abs(net).toFixed(2)}`;
+                    debtors.push({ person, amount: Math.abs(net) });
                 }
-
-                if (isNegative) debtors.push({ person, amount: Math.abs(net) });
-                if (isPositive) creditors.push({ person, amount: net });
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><strong>${person}</strong></td>
-                    <td class="val-paid">$${paid.toFixed(2)}</td>
-                    <td class="val-target">$${targetSharePerPerson.toFixed(2)}</td>
-                    <td class="${netClass}">${net > 0 ? '+' : ''}$${net.toFixed(2)}</td>
+                    <td class="val-out-of-pocket">$${paid.toFixed(2)}</td>
+                    <td class="val-share-owed">$${householdSharePerPerson.toFixed(2)}</td>
+                    <td class="${statusClass}">${formattedNet}</td>
                     <td class="${statusClass}">${statusText}</td>
                 `;
                 settlementBody.appendChild(row);
@@ -582,7 +474,7 @@
             transfersList.innerHTML = '';
 
             if (debtors.length === 0 && creditors.length === 0) {
-                transfersList.innerHTML = '<li>Everyone is settled up equally!</li>';
+                transfersList.innerHTML = '<li>Everyone is settled up equally for household expenses!</li>';
             } else {
                 let dIndex = 0, cIndex = 0;
                 while (dIndex < debtors.length && cIndex < creditors.length) {
@@ -606,7 +498,6 @@
             document.getElementById('report-card').style.display = 'block';
         }
 
-        // Admin Action: Reset Data
         async function clearAllData() {
             if (!isAdmin) return;
 
