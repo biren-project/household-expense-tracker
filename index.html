@@ -51,7 +51,6 @@
         th { background-color: #f8f9fa; }
         .owes { color: #c0392b; font-weight: bold; }
         .gets-back { color: #27ae60; font-weight: bold; }
-        .settled { color: #7f8c8d; font-weight: bold; }
         .landlord-pay { color: #8e44ad; font-weight: bold; }
         .val-out-of-pocket { color: #2980b9; font-weight: bold; }
         .val-share-owed { color: #d35400; font-weight: bold; }
@@ -443,20 +442,24 @@
                 const paid = personHouseholdSpent[person] || 0;
                 const net = paid - householdSharePerPerson;
 
-                let statusClass = 'settled';
-                let statusText = 'Settled ($0.00)';
-                let formattedNet = `$0.00`;
+                let statusClass = '';
+                let statusText = '';
+                let formattedNet = '';
 
-                if (net > 0.005) {
+                if (net >= 0) {
                     statusClass = 'gets-back';
-                    statusText = `Gets back $${net.toFixed(2)}`;
-                    formattedNet = `+$${net.toFixed(2)}`;
-                    creditors.push({ person, amount: net });
-                } else if (net < -0.005) {
+                    statusText = `Gets back $${Math.abs(net).toFixed(2)}`;
+                    formattedNet = `$${Math.abs(net).toFixed(2)}`;
+                    if (net > 0.005) {
+                        creditors.push({ person, amount: net });
+                    }
+                } else {
                     statusClass = 'owes';
                     statusText = `Owes $${Math.abs(net).toFixed(2)}`;
                     formattedNet = `-$${Math.abs(net).toFixed(2)}`;
-                    debtors.push({ person, amount: Math.abs(net) });
+                    if (net < -0.005) {
+                        debtors.push({ person, amount: Math.abs(net) });
+                    }
                 }
 
                 const row = document.createElement('tr');
