@@ -68,6 +68,8 @@
         .no-access { text-align: center; padding: 40px; background: #fff; border-radius: 8px; color: #e74c3c; }
         .summary-box { background: #f8f9fa; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
         .sync-status { font-size: 12px; color: #7f8c8d; margin-top: 5px; }
+        .filter-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+        .admin-filter-box { margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     </style>
 </head>
 <body>
@@ -99,7 +101,14 @@
 
         <div class="card">
             <button id="clear-btn" class="btn-clear" onclick="clearAllData()" style="display: none;">Reset / Clear All</button>
-            <h2 id="log-title">All Logged Expenses (Master Log)</h2>
+            
+            <div class="filter-header">
+                <h2 id="log-title" style="margin: 0;">Logged Expenses (Current Month)</h2>
+                <div>
+                    <label for="view-month-select"><strong>View Month:</strong> </label>
+                    <select id="view-month-select" onchange="renderExpenses(); if(isAdmin) calculateSettlement();" style="padding: 5px 10px; min-width: 150px;"></select>
+                </div>
+            </div>
 
             <table>
                 <thead>
@@ -114,8 +123,10 @@
                 </thead>
                 <tbody id="expense-list"></tbody>
             </table>
-            <br>
-            <button id="calc-btn" class="btn-calc" onclick="calculateSettlement()" style="display: none;">Calculate Monthly Settlement</button>
+            
+            <div id="admin-month-filter" class="admin-filter-box" style="display: none;">
+                <button id="calc-btn" class="btn-calc" onclick="calculateSettlement()">Calculate Settlement for Selected Month</button>
+            </div>
         </div>
 
         <div class="card" id="report-card" style="display: none;">
@@ -206,7 +217,7 @@
             if (isAdmin) {
                 document.getElementById('role-badge').innerHTML = '<span class="admin-badge">ADMIN MODE</span>';
                 document.getElementById('clear-btn').style.display = 'block';
-                document.getElementById('calc-btn').style.display = 'block';
+                document.getElementById('admin-month-filter').style.display = 'flex';
                 document.getElementById('actions-col').style.display = 'table-cell';
             } else if (isJaimin) {
                 document.getElementById('role-badge').innerHTML = '<span class="landlord-badge">LANDLORD / UTILITY MANAGER</span>';
@@ -218,7 +229,7 @@
                 document.querySelectorAll('.utility-option').forEach(opt => opt.remove());
             }
 
-            document.getElementById('date').valueAsDate = new Date();
+            document.getElementById('date').value = new Date().toISOString().split('T')[0];
             fetchExpensesFromCloud();
         }
 
@@ -231,10 +242,41 @@
                 const data = await response.json();
                 expenses = data.record.expenses || [];
                 document.getElementById('sync-status').innerText = 'Connected & Synced';
+                
+                populateMonthDropdown();
                 renderExpenses();
             } catch (err) {
                 console.error('Error fetching cloud data:', err);
                 document.getElementById('sync-status').innerText = 'Sync failed. Check internet connection.';
+            }
+        }
+
+        function populateMonthDropdown() {
+            const monthSelect = document.getElementById('view-month-select');
+            if (!monthSelect) return;
+
+            const selectedBefore = monthSelect.value;
+
+            // Extract unique months (YYYY-MM)
+            const months = [...new Set(expenses.map(e => e.date ? e.date.substring(0, 7) : ''))].filter(Boolean).sort().reverse();
+            
+            const currentMonth = new Date().toISOString().substring(0, 7);
+            if (!months.includes(currentMonth)) {
+                months.unshift(currentMonth);
+            }
+
+            monthSelect.innerHTML = months.map(m => {
+                const [year, month] = m.split('-');
+                const dateObj = new Date(year, month - 1, 1);
+                const label = dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                return `<option value="${m}">${label}</option>`;
+            }).join('');
+
+            // Preserve user's previous selection if valid, otherwise default to current month
+            if (selectedBefore && months.includes(selectedBefore)) {
+                monthSelect.value = selectedBefore;
+            } else {
+                monthSelect.value = currentMonth;
             }
         }
 
@@ -274,30 +316,51 @@
             }
 
             expenses.push({ id: Date.now(), date, category, paidBy: currentUser, description, amount });
+            
+            // Automatically switch view to the month of the newly added expense
+            const newExpenseMonth = date.substring(0, 7);
+            populateMonthDropdown();
+            document.getElementById('view-month-select').value = newExpenseMonth;
+
+            renderExpenses();
+            if (isAdmin && document.getElementById('report-card').style.display === 'block') {
+                calculateSettlement();
+            }
+            
             await saveExpensesToCloud();
 
             document.getElementById('description').value = '';
             document.getElementById('amount').value = '';
             
             submitBtn.disabled = false;
-            renderExpenses();
         });
 
         function renderExpenses() {
             const list = document.getElementById('expense-list');
             list.innerHTML = '';
 
-            const userExpenses = [...expenses];
+            const selectedMonth = document.getElementById('view-month-select').value;
+            const currentMonth = new Date().toISOString().substring(0, 7);
 
-            if (userExpenses.length === 0) {
+            // Filter expenses to show ONLY the selected month
+            const monthExpenses = expenses.filter(e => e.date && e.date.startsWith(selectedMonth));
+
+            // Update heading text
+            const [year, month] = selectedMonth.split('-');
+            const monthName = new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            document.getElementById('log-title').innerText = selectedMonth === currentMonth 
+                ? `Logged Expenses (${monthName} - Active)` 
+                : `Logged Expenses (${monthName} - Archived)`;
+
+            if (monthExpenses.length === 0) {
                 const colSpan = isAdmin ? 6 : 5;
-                list.innerHTML = `<tr><td colspan="${colSpan}">No expenses recorded yet.</td></tr>`;
+                list.innerHTML = `<tr><td colspan="${colSpan}">No expenses recorded for ${monthName}.</td></tr>`;
                 return;
             }
 
-            userExpenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+            monthExpenses.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-            userExpenses.forEach(item => {
+            monthExpenses.forEach(item => {
                 const row = document.createElement('tr');
                 let actionsCell = '';
                 if (isAdmin) {
@@ -347,9 +410,11 @@
             item.description = newDescription;
             item.amount = newAmount;
 
-            await saveExpensesToCloud();
             renderExpenses();
-            document.getElementById('report-card').style.display = 'none';
+            await saveExpensesToCloud();
+            if (document.getElementById('report-card').style.display === 'block') {
+                calculateSettlement();
+            }
         }
 
         async function deleteExpense(id) {
@@ -357,33 +422,31 @@
 
             if (confirm("Delete this expense entry?")) {
                 expenses = expenses.filter(item => item.id !== id);
-                await saveExpensesToCloud();
+                populateMonthDropdown();
                 renderExpenses();
-                document.getElementById('report-card').style.display = 'none';
+                await saveExpensesToCloud();
+                if (document.getElementById('report-card').style.display === 'block') {
+                    calculateSettlement();
+                }
             }
         }
 
         function calculateSettlement() {
             if (!isAdmin) return;
 
-            if (expenses.length > 0) {
-                const sortedExpenses = [...expenses].sort((a, b) => new Date(a.date) - new Date(b.date));
-                const startDateObj = new Date(sortedExpenses[0].date);
-                const startDateStr = startDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                const endDateObj = new Date();
-                const endDateStr = endDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                
-                const reportTitleElem = document.getElementById('report-title');
-                if (reportTitleElem) {
-                    reportTitleElem.innerText = `Household Expense Settlement Report (Basement) (${startDateStr} – ${endDateStr})`;
-                }
-            }
+            const selectedMonth = document.getElementById('view-month-select').value;
+            
+            const filteredExpenses = expenses.filter(e => e.date && e.date.startsWith(selectedMonth));
+
+            const [year, month] = selectedMonth.split('-');
+            const monthName = new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            document.getElementById('report-title').innerText = `Household Expense Settlement Report (${monthName})`;
 
             let householdTotal = 0, shawTotal = 0, enmaxTotal = 0, atcoTotal = 0;
             const personHouseholdSpent = {};
             mainHousehold.forEach(person => { personHouseholdSpent[person] = 0; });
 
-            expenses.forEach(item => {
+            filteredExpenses.forEach(item => {
                 if (item.category === 'shaw') shawTotal += item.amount;
                 else if (item.category === 'enmax') enmaxTotal += item.amount;
                 else if (item.category === 'atco') atcoTotal += item.amount;
@@ -504,9 +567,10 @@
         async function clearAllData() {
             if (!isAdmin) return;
 
-            if (confirm("Admin Warning: Clear all recorded expenses for this month across all devices?")) {
+            if (confirm("Admin Warning: Completely erase all recorded expenses across ALL months?")) {
                 expenses = [];
                 await saveExpensesToCloud();
+                populateMonthDropdown();
                 renderExpenses();
                 document.getElementById('report-card').style.display = 'none';
             }
