@@ -103,6 +103,8 @@
         .landlord-pay { color: #8e44ad; font-weight: bold; }
         .val-out-of-pocket { color: #2980b9; font-weight: bold; }
         .val-share-owed { color: #d35400; font-weight: bold; }
+        .val-utility-share { color: #0e7490; font-weight: bold; }
+        .val-rent-share { color: #7e22ce; font-weight: bold; }
         .payment-list { list-style: none; padding: 0; }
         .payment-list li {
             background: #eef7fe;
@@ -270,11 +272,14 @@
 
         let expenses = [];
 
-        // Parse URL Parameters
+        // Parse URL Parameters with case normalization
         const urlParams = new URLSearchParams(window.location.search);
-        const currentUser = urlParams.get('user');
+        const rawUser = urlParams.get('user');
         const currentRole = urlParams.get('role');
         
+        // Find exact matching user from validUsers (case-insensitive)
+        const currentUser = validUsers.find(u => u.toLowerCase() === (rawUser || '').toLowerCase()) || rawUser;
+
         // USER CHECKS
         const isAdmin = (currentUser === 'Biren' && currentRole === 'admin');
         const isJaimin = (currentUser === 'Jaimin');
@@ -498,7 +503,10 @@
                     atcoTotal += item.amount;
                 } else {
                     householdTotal += item.amount;
-                    if (personHouseholdSpent[item.paidBy] !== undefined) personHouseholdSpent[item.paidBy] += item.amount;
+                    const matchPerson = mainHousehold.find(p => p.toLowerCase() === (item.paidBy || '').toLowerCase());
+                    if (matchPerson) {
+                        personHouseholdSpent[matchPerson] += item.amount;
+                    }
                 }
             });
 
@@ -535,8 +543,8 @@
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><strong>${person}</strong></td>
-                    <td>$${utilitySharePerPerson.toFixed(2)}</td>
-                    <td>$${rentOwed.toFixed(2)}</td>
+                    <td class="val-utility-share">$${utilitySharePerPerson.toFixed(2)}</td>
+                    <td class="val-rent-share">$${rentOwed.toFixed(2)}</td>
                     <td class="landlord-pay"><strong>$${totalDueJaimin.toFixed(2)}</strong></td>
                 `;
                 spendingBody.appendChild(row);
