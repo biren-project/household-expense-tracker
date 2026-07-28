@@ -4,18 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>253 Herron Mews Basement Household Expense Tracker</title>
-
-    <!-- PWA & Mobile Web App Meta Tags -->
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Basement Expenses">
-    <meta name="theme-color" content="#2c3e50">
-
-    <!-- Embedded Web Application Icon -->
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232c3e50'/><text x='50%' y='65%' font-size='50' text-anchor='middle' fill='%2327ae60'>$</text></svg>">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232c3e50'/><text x='50%' y='65%' font-size='50' text-anchor='middle' fill='%2327ae60'>$</text></svg>">
-
     <style>
         /* Global Reset & Base Styles */
         * {
@@ -113,6 +101,7 @@
 
         th { background-color: #f8f9fa; }
 
+        /* Description column auto-wraps so long text doesn't blow out row height */
         td.desc-cell {
             white-space: normal;
             min-width: 150px;
@@ -222,7 +211,7 @@
                 <input type="number" id="amount" placeholder="Amount ($)" step="0.01" min="0.01" required>
                 <button type="submit" id="submit-btn">Submit Expense</button>
             </form>
-            <div id="sync-status" class="sync-status">Connecting to Secure Cloud Proxy...</div>
+            <div id="sync-status" class="sync-status">Connecting to Cloud Data Sync...</div>
         </div>
 
         <div class="card">
@@ -316,9 +305,8 @@
     </div>
 
     <script>
-        // --- SECURE SERVERLESS PROXY CONFIGURATION ---
-        // Replace this URL with your deployed Cloudflare Worker / Vercel Function URL
-        const WORKER_ENDPOINT = "https://your-basement-worker.your-subdomain.workers.dev/expenses";
+        const JSONBIN_BIN_ID = "6a63d85cf5f4af5e29bd604c";
+        const JSONBIN_MASTER_KEY = "$2a$10$aGsMHmzawGqngUYQk4byNO6eOgVEFFObkr5LyuKv1hQ73QECFOWN2";
 
         const mainHousehold = ["Biren", "Akshay", "Kunjalbhabhi", "Biju"]; 
         const validUsers = ["Biren", "Akshay", "Kunjalbhabhi", "Biju", "Jaimin"];
@@ -378,38 +366,36 @@
             fetchExpensesFromCloud();
         }
 
-        // FETCH EXPENSES VIA SERVERLESS PROXY
         async function fetchExpensesFromCloud() {
             const statusEl = document.getElementById('sync-status');
-            statusEl.innerText = 'Syncing securely via serverless proxy...';
+            statusEl.innerText = 'Syncing cloud data...';
             try {
-                const response = await fetch(WORKER_ENDPOINT, {
-                    method: 'GET',
-                    headers: { 'Accept': 'application/json' }
+                const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+                    headers: { 'X-Master-Key': JSONBIN_MASTER_KEY }
                 });
                 
                 if (!response.ok) {
-                    throw new Error(`Proxy error status ${response.status}`);
+                    throw new Error(`Server returned HTTP ${response.status}`);
                 }
 
                 const data = await response.json();
-                expenses = data.expenses || [];
+                expenses = data.record.expenses || [];
                 
                 // Cache to LocalStorage for offline resilience
-                localStorage.setItem('cached_expenses_basement', JSON.stringify(expenses));
+                localStorage.setItem('cached_expenses', JSON.stringify(expenses));
                 
                 statusEl.innerText = 'Connected & Synced';
                 
                 populateMonthDropdown();
                 renderExpenses();
             } catch (err) {
-                console.error('Error fetching data via serverless worker:', err);
+                console.error('Error fetching cloud data:', err);
                 
                 // Load offline cached backup if network call fails
-                const cached = localStorage.getItem('cached_expenses_basement');
+                const cached = localStorage.getItem('cached_expenses');
                 if (cached) {
                     expenses = JSON.parse(cached);
-                    statusEl.innerText = 'Offline mode: Loaded cached local data. Retrying proxy...';
+                    statusEl.innerText = 'Offline mode: Loaded cached local data. Retrying cloud...';
                     populateMonthDropdown();
                     renderExpenses();
                 } else {
@@ -440,11 +426,13 @@
                 const dateObj = new Date(year, month - 1, 1);
                 const label = dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
                 
+                // Tag active month vs archived months
                 const statusTag = (m === currentMonth) ? ' (Active)' : ' (Archived)';
                 
                 return `<option value="${m}">${label}${statusTag}</option>`;
             }).join('');
 
+            // Preserve user's previous selection if valid, otherwise default to current month
             if (selectedBefore && months.includes(selectedBefore)) {
                 monthSelect.value = selectedBefore;
             } else {
@@ -452,30 +440,33 @@
             }
         }
 
-        // SAVE EXPENSES VIA SERVERLESS PROXY
         async function saveExpensesToCloud() {
             const statusEl = document.getElementById('sync-status');
-            statusEl.innerText = 'Saving via serverless proxy...';
+            statusEl.innerText = 'Saving to cloud...';
             
-            localStorage.setItem('cached_expenses_basement', JSON.stringify(expenses));
+            // Always update local cache immediately
+            localStorage.setItem('cached_expenses', JSON.stringify(expenses));
 
             try {
-                const response = await fetch(WORKER_ENDPOINT, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ expenses: expenses, user: currentUser, role: currentRole })
+                const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': JSONBIN_MASTER_KEY
+                    },
+                    body: JSON.stringify({ expenses: expenses })
                 });
 
                 if (!response.ok) {
-                    throw new Error(`Proxy return status ${response.status}`);
+                    throw new Error(`Server returned HTTP ${response.status}`);
                 }
 
                 statusEl.innerText = 'Saved to Cloud';
                 return true;
             } catch (err) {
-                console.error('Error saving via serverless proxy:', err);
+                console.error('Error saving to cloud:', err);
                 statusEl.innerText = 'Cloud save failed! Saved locally.';
-                alert('Warning: Expense was saved locally but could not sync to cloud.');
+                alert('Warning: Expense was updated locally but could not sync to cloud. Check internet connection.');
                 return false;
             }
         }
@@ -491,6 +482,7 @@
             const description = document.getElementById('description').value.trim();
             const amount = parseFloat(document.getElementById('amount').value);
 
+            // Input Validation Checks
             if (!description) {
                 alert('Please enter a description for the expense.');
                 return;
@@ -505,11 +497,13 @@
                 return;
             }
 
+            // UI Loading Feedback
             submitBtn.disabled = true;
             submitBtn.innerText = 'Saving Expense...';
 
             expenses.push({ id: Date.now(), date, category, paidBy: currentUser, description, amount, archived: false });
             
+            // Switch view to the month of the newly added expense
             const newExpenseMonth = date.substring(0, 7);
             populateMonthDropdown();
             document.getElementById('view-month-select').value = newExpenseMonth;
@@ -521,9 +515,11 @@
             
             await saveExpensesToCloud();
 
+            // Clear inputs
             document.getElementById('description').value = '';
             document.getElementById('amount').value = '';
             
+            // Restore button state
             submitBtn.disabled = false;
             submitBtn.innerText = originalBtnText;
         });
@@ -535,8 +531,10 @@
             const selectedMonth = document.getElementById('view-month-select').value;
             const currentMonth = getLocalMonthString();
 
+            // Filter expenses to show ONLY active (non-archived) entries for the selected month
             const monthExpenses = expenses.filter(e => !e.archived && e.date && e.date.startsWith(selectedMonth));
 
+            // Update heading text
             const [year, month] = selectedMonth.split('-');
             const monthName = new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
             document.getElementById('log-title').innerText = selectedMonth === currentMonth 
@@ -577,6 +575,7 @@
                     ${actionsCell}
                 `;
                 
+                // Securely render description to prevent XSS
                 row.querySelector('.desc-cell').textContent = item.description;
                 list.appendChild(row);
             });
@@ -633,6 +632,8 @@
             if (!isAdmin) return;
 
             const selectedMonth = document.getElementById('view-month-select').value;
+            
+            // Only calculate over active (non-archived) expenses
             const filteredExpenses = expenses.filter(e => !e.archived && e.date && e.date.startsWith(selectedMonth));
 
             const [year, month] = selectedMonth.split('-');
@@ -770,28 +771,34 @@
                 return;
             }
 
+            // Standard Header Row
             let csvContent = "Date,Paid By,Category,Description,Amount\n";
 
+            // Process Each Row Safely
             monthExpenses.forEach(e => {
                 const escapedDesc = e.description ? `"${e.description.replace(/"/g, '""')}"` : '""';
                 const row = `"${e.date}","${e.paidBy}","${e.category}",${escapedDesc},${e.amount}`;
                 csvContent += row + "\n";
             });
 
+            // \uFEFF (UTF-8 BOM) ensures Mobile Excel / Numbers / Google Sheets parse formatting correctly
             const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
 
+            const link = document.append("a");
             const linkNode = document.createElement("a");
             linkNode.setAttribute("href", url);
-            linkNode.setAttribute("download", `Basement_Expenses_${selectedMonth}.csv`);
+            linkNode.setAttribute("download", `Expenses_${selectedMonth}.csv`);
             document.body.appendChild(linkNode);
             
             linkNode.click();
 
+            // Clean up DOM and memory
             document.body.removeChild(linkNode);
             setTimeout(() => URL.revokeObjectURL(url), 100);
         }
 
+        // Soft Delete (Archive) logic: marks items as archived rather than removing from DB
         async function clearAllData() {
             if (!isAdmin) return;
 
@@ -813,6 +820,7 @@
 
             if (!confirmed) return;
 
+            // Mark expenses for the selected month as archived
             expenses.forEach(e => {
                 if (e.date && e.date.startsWith(selectedMonth)) {
                     e.archived = true;
