@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>253 Herron Mews Basement Household Expense Tracker</title>
     <style>
+        /* Global Reset & Base Styles */
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             max-width: 900px;
@@ -13,7 +18,25 @@
             background-color: #f4f6f8;
             color: #333;
         }
-        h1, h2, h3 { color: #1a252f; margin-top: 0; }
+
+        h1 {
+            font-size: 1.8rem;
+            color: #1a252f;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.4rem;
+            color: #1a252f;
+            margin-top: 0;
+        }
+
+        h3 {
+            font-size: 1.1rem;
+            color: #1a252f;
+            margin-top: 0;
+        }
+
         .card {
             background: #fff;
             padding: 20px;
@@ -21,6 +44,7 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.08);
             margin-bottom: 20px;
         }
+
         .user-banner {
             background: #2c3e50;
             color: white;
@@ -31,15 +55,19 @@
             justify-content: space-between;
             margin-bottom: 20px;
         }
+
         .admin-badge { background-color: #f39c12; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
         .user-badge { background-color: #3498db; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
         .landlord-badge { background-color: #9b59b6; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+
         .form-group { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; }
         input, select, button { padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; }
         input, select { flex: 1; min-width: 120px; }
+        
         button { background-color: #27ae60; color: white; border: none; cursor: pointer; font-weight: bold; }
         button:hover { background-color: #219150; }
         button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        
         .btn-calc { background-color: #2980b9; }
         .btn-calc:hover { background-color: #1f6391; }
         .btn-export { background-color: #16a085; }
@@ -49,9 +77,36 @@
         .btn-action { padding: 4px 8px; font-size: 12px; margin-right: 4px; }
         .btn-edit { background-color: #f39c12; }
         .btn-delete { background-color: #e74c3c; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; }
+
+        /* Responsive Table Formatting */
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin-top: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            word-break: normal;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 10px 8px;
+            border-bottom: 1px solid #ddd;
+            white-space: nowrap;
+        }
+
         th { background-color: #f8f9fa; }
+
+        /* Description column auto-wraps so long text doesn't blow out row height */
+        td.desc-cell {
+            white-space: normal;
+            min-width: 150px;
+        }
+
         .owes { color: #c0392b; font-weight: bold; }
         .gets-back { color: #27ae60; font-weight: bold; }
         .landlord-pay { color: #8e44ad; font-weight: bold; }
@@ -59,6 +114,7 @@
         .val-share-owed { color: #d35400; font-weight: bold; }
         .val-utility-share { color: #0e7490; font-weight: bold; }
         .val-rent-share { color: #7e22ce; font-weight: bold; }
+
         .payment-list { list-style: none; padding: 0; }
         .payment-list li {
             background: #eef7fe;
@@ -68,11 +124,67 @@
             border-radius: 0 4px 4px 0;
             font-size: 15px;
         }
+
         .no-access { text-align: center; padding: 40px; background: #fff; border-radius: 8px; color: #e74c3c; }
         .summary-box { background: #f8f9fa; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
         .sync-status { font-size: 12px; color: #7f8c8d; margin-top: 5px; }
+        
         .filter-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
         .admin-filter-box { margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+        /* Mobile Adjustments */
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+                margin: 10px auto;
+            }
+
+            h1 { font-size: 1.4rem; }
+            h2 { font-size: 1.2rem; }
+
+            .card {
+                padding: 15px;
+            }
+
+            .user-banner {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .form-group {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            input, select, button {
+                width: 100%;
+                min-width: 100%;
+            }
+
+            .filter-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-header > div {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                gap: 8px !important;
+            }
+
+            .btn-clear {
+                float: none;
+                width: 100%;
+                margin-bottom: 15px;
+            }
+
+            th, td {
+                padding: 8px 6px;
+                font-size: 13px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -114,19 +226,21 @@
                 </div>
             </div>
 
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Paid By</th>
-                        <th>Category</th>
-                        <th>Description</th>
-                        <th>Amount ($)</th>
-                        <th id="actions-col" style="display: none;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="expense-list"></tbody>
-            </table>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Paid By</th>
+                            <th>Category</th>
+                            <th>Description</th>
+                            <th>Amount ($)</th>
+                            <th id="actions-col" style="display: none;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expense-list"></tbody>
+                </table>
+            </div>
             
             <div id="admin-month-filter" class="admin-filter-box" style="display: none;">
                 <button id="calc-btn" class="btn-calc" onclick="calculateSettlement()">Calculate Settlement for Selected Month</button>
@@ -148,17 +262,19 @@
             </div>
 
             <h3>1. Rent & Utility Breakdown (Payable to Jaimin)</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Person</th>
-                        <th>Utility Share</th>
-                        <th>Rent Share</th>
-                        <th>Total Payable to Jaimin</th>
-                    </tr>
-                </thead>
-                <tbody id="spending-breakdown-list"></tbody>
-            </table>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Person</th>
+                            <th>Utility Share</th>
+                            <th>Rent Share</th>
+                            <th>Total Payable to Jaimin</th>
+                        </tr>
+                    </thead>
+                    <tbody id="spending-breakdown-list"></tbody>
+                </table>
+            </div>
 
             <br>
 
@@ -166,18 +282,20 @@
             <ul id="transfers-list" class="payment-list"></ul>
 
             <h3>3. Individual Balances & Settlement Summary</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Person</th>
-                        <th>Total Paid</th>
-                        <th>Target Share</th>
-                        <th>Net Balance</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody id="settlement-list"></tbody>
-            </table>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Person</th>
+                            <th>Total Paid</th>
+                            <th>Target Share</th>
+                            <th>Net Balance</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="settlement-list"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -667,15 +785,16 @@
             const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
 
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", `Expenses_${selectedMonth}.csv`);
-            document.body.appendChild(link);
+            const link = document.append("a");
+            const linkNode = document.createElement("a");
+            linkNode.setAttribute("href", url);
+            linkNode.setAttribute("download", `Expenses_${selectedMonth}.csv`);
+            document.body.appendChild(linkNode);
             
-            link.click();
+            linkNode.click();
 
             // Clean up DOM and memory
-            document.body.removeChild(link);
+            document.body.removeChild(linkNode);
             setTimeout(() => URL.revokeObjectURL(url), 100);
         }
 
