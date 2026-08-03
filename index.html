@@ -358,6 +358,9 @@
                 if (!monthlyPayments.landlordPayments) {
                     monthlyPayments.landlordPayments = {};
                 }
+                if (!monthlyPayments.partialPayments) {
+                    monthlyPayments.partialPayments = {};
+                }
 
                 localStorage.setItem('cached_expenses', JSON.stringify(expenses));
                 localStorage.setItem('cached_payments', JSON.stringify(monthlyPayments));
@@ -378,6 +381,7 @@
                     expenses = JSON.parse(cached);
                     if (cachedPayments) monthlyPayments = JSON.parse(cachedPayments);
                     if (!monthlyPayments.landlordPayments) monthlyPayments.landlordPayments = {};
+                    if (!monthlyPayments.partialPayments) monthlyPayments.partialPayments = {};
                     
                     statusEl.innerText = 'Offline mode: Loaded cached local data. Retrying cloud...';
                     populateMonthDropdown();
@@ -523,7 +527,7 @@
                 return;
             }
 
-            monthExpenses.sort((a, b) => new Date(b.date) - new Date(b.date));
+            monthExpenses.sort((a, b) => new Date(b.date) - new Date(a.date));
 
             monthExpenses.forEach(item => {
                 const row = document.createElement('tr');
@@ -603,38 +607,39 @@
             }
         }
 
-        async function togglePaymentStatus(month, unitKey) {
+        async function recordPartialPayment(month, unitKey, defaultDueAmount) {
             if (!isAdmin) return;
 
-            if (!monthlyPayments[month]) {
-                monthlyPayments[month] = {};
+            const paidInput = prompt(`Enter payment amount received from ${unitKey} for ${month} (Target Due: $${defaultDueAmount.toFixed(2)}):`, defaultDueAmount.toFixed(2));
+            if (paidInput === null) return;
+
+            const paidVal = parseFloat(paidInput);
+            if (isNaN(paidVal) || paidVal < 0) {
+                alert("Please enter a valid amount.");
+                return;
             }
 
-            const currentStatus = monthlyPayments[month][unitKey] || false;
-            
-            if (!currentStatus) {
-                const customAmount = prompt(`Enter amount paid by ${unitKey} to settle share for ${month}:`, "");
-                if (customAmount === null) return;
-                
-                const paidVal = parseFloat(customAmount);
-                if (!isNaN(paidVal) && paidVal > 0) {
-                    expenses.push({
-                        id: Date.now(),
-                        date: `${month}-01`,
-                        category: 'household',
-                        paidBy: 'Akshay',
-                        description: `Payment Settlement / Adjustment for ${unitKey} (${month})`,
-                        amount: paidVal,
-                        archived: false
-                    });
-                }
-                monthlyPayments[month][unitKey] = true;
-            } else {
-                monthlyPayments[month][unitKey] = false;
+            if (!monthlyPayments.partialPayments) {
+                monthlyPayments.partialPayments = {};
+            }
+            if (!monthlyPayments.partialPayments[month]) {
+                monthlyPayments.partialPayments[month] = {};
+            }
+
+            monthlyPayments.partialPayments[month][unitKey] = paidVal;
+
+            calculateSettlement();
+            await saveExpensesToCloud();
+        }
+
+        async function resetPaymentStatus(month, unitKey) {
+            if (!isAdmin) return;
+
+            if (monthlyPayments.partialPayments && monthlyPayments.partialPayments[month]) {
+                delete monthlyPayments.partialPayments[month][unitKey];
             }
 
             calculateSettlement();
-            renderExpenses();
             await saveExpensesToCloud();
         }
 
@@ -675,7 +680,8 @@
             let carryforwardDebts = {};
             const householdUnits = ["Biren", "Akshay & Kunjalbhabhi", "Biju"];
 
-            if (monthlyPayments[prevMonth]) {
+            // Calculate carryforward from previous month's unpaid or partially paid deficits
+            if (monthlyPayments.partialPayments && monthlyPayments.partialPayments[prevMonth]) {
                 const prevExpenses = expenses.filter(e => !e.archived && e.date && e.date.startsWith(prevMonth));
                 let prevSpent = { "Biren": 0, "Akshay & Kunjalbhabhi": 0, "Biju": 0 };
                 let prevTotal = 0;
@@ -698,11 +704,16 @@
 
                 householdUnits.forEach(unitKey => {
                     const paid = prevSpent[unitKey] || 0;
-                    const target = prevUnitTargetShares[unitKey];
-                    const net = paid - target;
-                    const isPaid = monthlyPayments[prevMonth][unitKey] || false;
-                    if (net < -0.005 && !isPaid) {
-                        carryforwardDebts[unitKey] = Math.abs(net);
+                    const baseTarget = prevUnitUnitTarget = prevUnitTargetShares[unitKey];
+                    const netBeforePayment = paid - baseTarget; // Negative means they owed money
+
+                    if (netBeforePayment < -0.005) {
+                        const totalOwed = Math.abs(netBeforePayment);
+                        const actualPaid = monthlyPayments.partialPayments[prevMonth][unitKey] !== undefined ? monthlyPayments.partialPayments[prevMonth][unitKey] : 0;
+                        const remainingDeficit = totalOwed - actualPaid;
+                        if (remainingDeficit > 0.005) {
+                            carryforwardDebts[unitKey] = remainingDeficit;
+                        }
                     }
                 });
             }
@@ -802,39 +813,63 @@
                     const targetShare = baseShare + carriedOver;
                     const net = paid - targetShare;
 
-                    const isPaidForMonth = monthlyPayments[selectedMonth]?.[unitKey] || false;
+                    // Check if payment was recorded for this month
+                    const partialPaidAmount = monthlyPayments.partialPayments?.[selectedMonth]?.[unitKey];
+                    const hasPaymentRecord = partialPaidAmount !== undefined;
 
                     let statusClass = '';
                     let statusText = '';
                     let formattedNet = '';
+                    let adjustedNet = net;
 
-                    if (isPaidForMonth) {
-                        statusClass = 'gets-back';
-                        statusText = 'Paid & Settled ✓';
-                        formattedNet = `$0.00`;
-                    } else if (net >= 0) {
-                        statusClass = 'gets-back';
-                        statusText = `Gets back $${Math.abs(net).toFixed(2)}`;
-                        formattedNet = `$${Math.abs(net).toFixed(2)}`;
-                        if (net > 0.005) {
-                            creditors.push({ person: unitKey, amount: net });
+                    if (hasPaymentRecord) {
+                        // Effective net after accounting for partial/full payment made
+                        adjustedNet = net + partialPaidAmount;
+                        if (Math.abs(adjustedNet) < 0.01) {
+                            statusClass = 'gets-back';
+                            statusText = `Paid & Settled ✓ ($${partialPaidAmount.toFixed(2)} paid)`;
+                            formattedNet = `$0.00`;
+                        } else if (adjustedNet > 0) {
+                            statusClass = 'gets-back';
+                            statusText = `Gets back $${Math.abs(adjustedNet).toFixed(2)} (Paid $${partialPaidAmount.toFixed(2)})`;
+                            formattedNet = `$${Math.abs(adjustedNet).toFixed(2)}`;
+                            creditors.push({ person: unitKey, amount: adjustedNet });
+                        } else {
+                            statusClass = 'owes';
+                            statusText = `Owes $${Math.abs(adjustedNet).toFixed(2)} remaining (Paid $${partialPaidAmount.toFixed(2)})`;
+                            formattedNet = `-$${Math.abs(adjustedNet).toFixed(2)}`;
+                            debtors.push({ person: unitKey, amount: Math.abs(adjustedNet) });
                         }
                     } else {
-                        statusClass = 'owes';
-                        statusText = carriedOver > 0 ? `Owes $${Math.abs(net).toFixed(2)} (Incl. Carryforward)` : `Owes $${Math.abs(net).toFixed(2)}`;
-                        formattedNet = `-$${Math.abs(net).toFixed(2)}`;
-                        if (net < -0.005) {
+                        // Default state: Unpaid
+                        if (net >= 0) {
+                            statusClass = 'gets-back';
+                            statusText = `Gets back $${Math.abs(net).toFixed(2)} (Unpaid)`;
+                            formattedNet = `$${Math.abs(net).toFixed(2)}`;
+                            creditors.push({ person: unitKey, amount: net });
+                        } else {
+                            statusClass = 'owes';
+                            statusText = carriedOver > 0 ? `Owes $${Math.abs(net).toFixed(2)} (Incl. Carryforward - Unpaid)` : `Owes $${Math.abs(net).toFixed(2)} (Unpaid)`;
+                            formattedNet = `-$${Math.abs(net).toFixed(2)}`;
                             debtors.push({ person: unitKey, amount: Math.abs(net) });
                         }
                     }
 
-                    let actionButtonHtml = isAdmin ? `
-                        <td>
-                            <button class="btn-action ${isPaidForMonth ? 'btn-delete' : 'btn-calc'}" 
-                                    onclick="togglePaymentStatus('${selectedMonth}', '${unitKey}')">
-                                ${isPaidForMonth ? 'Unmark Paid' : 'Mark Paid'}
-                            </button>
-                        </td>` : '';
+                    let actionButtonHtml = '';
+                    if (isAdmin) {
+                        if (hasPaymentRecord) {
+                            actionButtonHtml = `
+                                <td>
+                                    <button class="btn-action btn-calc" onclick="recordPartialPayment('${selectedMonth}', '${unitKey}', ${Math.abs(net)})">Update Paid</button>
+                                    <button class="btn-action btn-delete" onclick="resetPaymentStatus('${selectedMonth}', '${unitKey}')">Reset Unpaid</button>
+                                </td>`;
+                        } else {
+                            actionButtonHtml = `
+                                <td>
+                                    <button class="btn-action btn-calc" onclick="recordPartialPayment('${selectedMonth}', '${unitKey}', ${Math.abs(net)})">Mark Paid / Partial</button>
+                                </td>`;
+                        }
+                    }
 
                     const row = document.createElement('tr');
                     row.innerHTML = `
