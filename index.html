@@ -77,6 +77,8 @@
         .btn-action { padding: 4px 8px; font-size: 12px; margin-right: 4px; }
         .btn-edit { background-color: #f39c12; }
         .btn-delete { background-color: #e74c3c; }
+        .btn-logout { background-color: #7f8c8d; font-size: 12px; padding: 6px 12px; }
+        .btn-logout:hover { background-color: #626d6e; }
 
         /* Responsive Table Formatting */
         .table-responsive {
@@ -189,10 +191,33 @@
 </head>
 <body>
 
+    <!-- On-Page Login Screen -->
+    <div id="login-screen" class="card" style="text-align: center; max-width: 450px; margin: 80px auto; display: none;">
+        <h2>253 Herron Mews Basement</h2>
+        <p>Household Expense Tracker</p>
+        <hr style="border:0; border-top: 1px solid #eee; margin: 20px 0;">
+        <p style="text-align: left; font-size: 14px; margin-bottom: 8px;"><strong>Select your profile to sign in:</strong></p>
+        <div class="form-group" style="flex-direction: column;">
+            <select id="login-user-select" style="width: 100%; margin-bottom: 10px;">
+                <option value="" disabled selected>-- Choose Name --</option>
+                <option value="Biren">Biren (Admin)</option>
+                <option value="Akshay">Akshay</option>
+                <option value="Kunjalbhabhi">Kunjalbhabhi</option>
+                <option value="Biju">Biju</option>
+                <option value="Jaimin">Jaimin (Landlord / Utility Manager)</option>
+            </select>
+            <button class="btn-calc" onclick="handleOnPageLogin()" style="width: 100%; padding: 12px;">Sign In</button>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
     <div id="app-container" style="display: none;">
         <div class="user-banner">
             <div><strong>Welcome, <span id="display-name">User</span>!</strong></div>
-            <div id="role-badge"></div>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div id="role-badge"></div>
+                <button class="btn-logout" onclick="logoutUser()">Switch User</button>
+            </div>
         </div>
 
         <h1>253 Herron Mews Basement Household Expense Tracker</h1>
@@ -300,11 +325,6 @@
         </div>
     </div>
 
-    <div id="error-screen" class="no-access card" style="display: none;">
-        <h2>Invalid Access Link</h2>
-        <p>Please use your personalized link to access the expense tracker.</p>
-    </div>
-
     <script>
         const JSONBIN_BIN_ID = "6a63d85cf5f4af5e29bd604c";
         const JSONBIN_MASTER_KEY = "$2a$10$aGsMHmzawGqngUYQk4byNO6eOgVEFFObkr5LyuKv1hQ73QECFOWN2";
@@ -323,31 +343,19 @@
         let expenses = [];
         let monthlyPayments = {}; // Track paid statuses per month: { "YYYY-MM": { "Biren": true, ... } }
 
-        // Helper function for local date string (YYYY-MM)
-        function getLocalMonthString(date = new Date()) {
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            return `${year}-${month}`;
-        }
+        // Retrieve logged-in user from localStorage
+        let currentUser = localStorage.getItem('tracker_current_user') || '';
+        let isAdmin = (currentUser === 'Biren');
+        let isJaimin = (currentUser === 'Jaimin');
 
-        function getPreviousMonthString(currentMonthStr) {
-            const [year, month] = currentMonthStr.split('-').map(Number);
-            const date = new Date(year, month - 2, 1);
-            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        }
+        function initApp() {
+            if (!currentUser || !validUsers.includes(currentUser)) {
+                document.getElementById('login-screen').style.display = 'block';
+                document.getElementById('app-container').style.display = 'none';
+                return;
+            }
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const rawUser = urlParams.get('user');
-        const currentRole = urlParams.get('role');
-        
-        const currentUser = validUsers.find(u => u.toLowerCase() === (rawUser || '').toLowerCase()) || rawUser;
-
-        const isAdmin = (currentUser === 'Biren' && currentRole === 'admin');
-        const isJaimin = (currentUser === 'Jaimin');
-
-        if (!currentUser || !validUsers.includes(currentUser)) {
-            document.getElementById('error-screen').style.display = 'block';
-        } else {
+            document.getElementById('login-screen').style.display = 'none';
             document.getElementById('app-container').style.display = 'block';
             document.getElementById('display-name').innerText = currentUser;
             
@@ -366,12 +374,42 @@
                 document.querySelectorAll('.utility-option').forEach(opt => opt.remove());
             }
 
-            // Set default date using local time
             const now = new Date();
             const localDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
             document.getElementById('date').value = localDateStr;
             
             fetchExpensesFromCloud();
+        }
+
+        function handleOnPageLogin() {
+            const selectEl = document.getElementById('login-user-select');
+            const selected = selectEl.value;
+            if (!selected) {
+                alert('Please select your profile name from the dropdown.');
+                return;
+            }
+            localStorage.setItem('tracker_current_user', selected);
+            currentUser = selected;
+            isAdmin = (currentUser === 'Biren');
+            isJaimin = (currentUser === 'Jaimin');
+            initApp();
+        }
+
+        function logoutUser() {
+            localStorage.removeItem('tracker_current_user');
+            location.reload();
+        }
+
+        function getLocalMonthString(date = new Date()) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            return `${year}-${month}`;
+        }
+
+        function getPreviousMonthString(currentMonthStr) {
+            const [year, month] = currentMonthStr.split('-').map(Number);
+            const date = new Date(year, month - 2, 1);
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         }
 
         async function fetchExpensesFromCloud() {
@@ -390,7 +428,6 @@
                 expenses = data.record.expenses || [];
                 monthlyPayments = data.record.monthlyPayments || {};
                 
-                // Cache to LocalStorage for offline resilience
                 localStorage.setItem('cached_expenses', JSON.stringify(expenses));
                 localStorage.setItem('cached_payments', JSON.stringify(monthlyPayments));
                 
@@ -401,7 +438,6 @@
             } catch (err) {
                 console.error('Error fetching cloud data:', err);
                 
-                // Load offline cached backup if network call fails
                 const cached = localStorage.getItem('cached_expenses');
                 const cachedPayments = localStorage.getItem('cached_payments');
                 if (cached) {
@@ -424,7 +460,6 @@
 
             const selectedBefore = monthSelect.value;
 
-            // Extract unique months (YYYY-MM) from active (non-archived) expenses
             const activeExpenses = expenses.filter(e => !e.archived);
             const months = [...new Set(activeExpenses.map(e => e.date ? e.date.substring(0, 7) : ''))].filter(Boolean).sort().reverse();
             
@@ -629,7 +664,6 @@
             }
         }
 
-        // Admin function to toggle/mark month paid status & handle partial adjustments
         async function togglePaymentStatus(month, person) {
             if (!isAdmin) return;
 
@@ -641,11 +675,10 @@
             
             if (!currentStatus) {
                 const customAmount = prompt(`Enter amount paid by ${person} to settle share for ${month}:`, "");
-                if (customAmount === null) return; // Cancelled
+                if (customAmount === null) return;
                 
                 const paidVal = parseFloat(customAmount);
                 if (!isNaN(paidVal) && paidVal > 0) {
-                    // Log the adjusted payment as a credit adjustment expense for this month
                     expenses.push({
                         id: Date.now(),
                         date: `${month}-01`,
@@ -672,10 +705,8 @@
             const selectedMonth = document.getElementById('view-month-select').value;
             const prevMonth = getPreviousMonthString(selectedMonth);
             
-            // Calculate carryforward from previous month for any unpaid balances
             let carryforwardDebts = {};
             if (monthlyPayments[prevMonth]) {
-                // Compute previous month's net balances to find who carried a deficit
                 const prevExpenses = expenses.filter(e => !e.archived && e.date && e.date.startsWith(prevMonth));
                 let prevSpent = {};
                 mainHousehold.forEach(p => prevSpent[p] = 0);
@@ -692,7 +723,6 @@
                     const paid = prevSpent[person] || 0;
                     const net = paid - prevShare;
                     const isPaid = monthlyPayments[prevMonth][person] || false;
-                    // If they had a negative net balance and weren't marked paid, carry it forward
                     if (net < -0.005 && !isPaid) {
                         carryforwardDebts[person] = Math.abs(net);
                     }
@@ -907,6 +937,9 @@
             renderExpenses();
             document.getElementById('report-card').style.display = 'none';
         }
+
+        // Initialize application on load
+        initApp();
     </script>
 </body>
 </html>
