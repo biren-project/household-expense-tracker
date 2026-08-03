@@ -77,8 +77,6 @@
         .btn-action { padding: 4px 8px; font-size: 12px; margin-right: 4px; }
         .btn-edit { background-color: #f39c12; }
         .btn-delete { background-color: #e74c3c; }
-        .btn-logout { background-color: #7f8c8d; font-size: 12px; padding: 6px 12px; }
-        .btn-logout:hover { background-color: #626d6e; }
 
         /* Responsive Table Formatting */
         .table-responsive {
@@ -103,7 +101,6 @@
 
         th { background-color: #f8f9fa; }
 
-        /* Description column auto-wraps so long text doesn't blow out row height */
         td.desc-cell {
             white-space: normal;
             min-width: 150px;
@@ -134,90 +131,34 @@
         .filter-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
         .admin-filter-box { margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
-        /* Mobile Adjustments */
         @media (max-width: 600px) {
-            body {
-                padding: 10px;
-                margin: 10px auto;
-            }
-
+            body { padding: 10px; margin: 10px auto; }
             h1 { font-size: 1.4rem; }
             h2 { font-size: 1.2rem; }
-
-            .card {
-                padding: 15px;
-            }
-
-            .user-banner {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 8px;
-            }
-
-            .form-group {
-                flex-direction: column;
-                gap: 8px;
-            }
-
-            input, select, button {
-                width: 100%;
-                min-width: 100%;
-            }
-
-            .filter-header {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .filter-header > div {
-                display: flex;
-                flex-direction: column;
-                width: 100%;
-                gap: 8px !important;
-            }
-
-            .btn-clear {
-                float: none;
-                width: 100%;
-                margin-bottom: 15px;
-            }
-
-            th, td {
-                padding: 8px 6px;
-                font-size: 13px;
-            }
+            .card { padding: 15px; }
+            .user-banner { flex-direction: column; align-items: flex-start; gap: 8px; }
+            .form-group { flex-direction: column; gap: 8px; }
+            input, select, button { width: 100%; min-width: 100%; }
+            .filter-header { flex-direction: column; align-items: stretch; }
+            .filter-header > div { display: flex; flex-direction: column; width: 100%; gap: 8px !important; }
+            .btn-clear { float: none; width: 100%; margin-bottom: 15px; }
+            th, td { padding: 8px 6px; font-size: 13px; }
         }
     </style>
 </head>
 <body>
 
-    <!-- On-Page Login Screen -->
-    <div id="login-screen" class="card" style="text-align: center; max-width: 450px; margin: 80px auto; display: none;">
-        <h2>253 Herron Mews Basement</h2>
-        <p>Household Expense Tracker</p>
-        <hr style="border:0; border-top: 1px solid #eee; margin: 20px 0;">
-        <p style="text-align: left; font-size: 14px; margin-bottom: 8px;"><strong>Select your profile to sign in:</strong></p>
-        <div class="form-group" style="flex-direction: column;">
-            <select id="login-user-select" style="width: 100%; margin-bottom: 10px;">
-                <option value="" disabled selected>-- Choose Name --</option>
-                <option value="Biren">Biren (Admin)</option>
-                <option value="Akshay">Akshay</option>
-                <option value="Kunjalbhabhi">Kunjalbhabhi</option>
-                <option value="Biju">Biju</option>
-                <option value="Jaimin">Jaimin (Landlord / Utility Manager)</option>
-            </select>
-            <button class="btn-calc" onclick="handleOnPageLogin()" style="width: 100%; padding: 12px;">Sign In</button>
-        </div>
+    <!-- Access Denied Screen for Invalid/Missing URL parameter -->
+    <div id="error-screen" class="no-access" style="display: none;">
+        <h2>Access Restricted</h2>
+        <p>You must use your designated personal URL link with your name included (e.g. <code>?user=Akshay</code>) to access the tracker.</p>
     </div>
 
     <!-- Main App Container -->
     <div id="app-container" style="display: none;">
         <div class="user-banner">
             <div><strong>Welcome, <span id="display-name">User</span>!</strong></div>
-            <div style="display: flex; align-items: center; gap: 15px;">
-                <div id="role-badge"></div>
-                <button class="btn-logout" onclick="logoutUser()">Switch User</button>
-            </div>
+            <div id="role-badge"></div>
         </div>
 
         <h1>253 Herron Mews Basement Household Expense Tracker</h1>
@@ -341,21 +282,22 @@
         };
 
         let expenses = [];
-        let monthlyPayments = {}; // Track paid statuses per month: { "YYYY-MM": { "Biren": true, ... } }
+        let monthlyPayments = {}; 
 
-        // Retrieve logged-in user from localStorage
-        let currentUser = localStorage.getItem('tracker_current_user') || '';
+        // Read user strictly from URL parameter (?user=...)
+        const urlParams = new URLSearchParams(window.location.search);
+        let currentUser = urlParams.get('user') || '';
         let isAdmin = (currentUser === 'Biren');
         let isJaimin = (currentUser === 'Jaimin');
 
         function initApp() {
             if (!currentUser || !validUsers.includes(currentUser)) {
-                document.getElementById('login-screen').style.display = 'block';
+                document.getElementById('error-screen').style.display = 'block';
                 document.getElementById('app-container').style.display = 'none';
                 return;
             }
 
-            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('error-screen').style.display = 'none';
             document.getElementById('app-container').style.display = 'block';
             document.getElementById('display-name').innerText = currentUser;
             
@@ -379,25 +321,6 @@
             document.getElementById('date').value = localDateStr;
             
             fetchExpensesFromCloud();
-        }
-
-        function handleOnPageLogin() {
-            const selectEl = document.getElementById('login-user-select');
-            const selected = selectEl.value;
-            if (!selected) {
-                alert('Please select your profile name from the dropdown.');
-                return;
-            }
-            localStorage.setItem('tracker_current_user', selected);
-            currentUser = selected;
-            isAdmin = (currentUser === 'Biren');
-            isJaimin = (currentUser === 'Jaimin');
-            initApp();
-        }
-
-        function logoutUser() {
-            localStorage.removeItem('tracker_current_user');
-            location.reload();
         }
 
         function getLocalMonthString(date = new Date()) {
