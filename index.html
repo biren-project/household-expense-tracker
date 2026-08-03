@@ -77,6 +77,10 @@
         .btn-action { padding: 4px 8px; font-size: 12px; margin-right: 4px; }
         .btn-edit { background-color: #f39c12; }
         .btn-delete { background-color: #e74c3c; }
+        .btn-paid { background-color: #27ae60 !important; }
+        .btn-paid:hover { background-color: #219150 !important; }
+        .btn-unpaid { background-color: #e74c3c !important; }
+        .btn-unpaid:hover { background-color: #c0392b !important; }
 
         /* Responsive Table Formatting */
         .table-responsive {
@@ -621,7 +625,6 @@
             const isFullyPaid = (currentPaidAmount === true || currentPaidAmount >= fullDueAmount - 0.005);
 
             if (isFullyPaid) {
-                // Toggle back to unpaid / 0
                 monthlyPayments.householdPaid[month][unitKey] = 0;
             } else {
                 const defaultVal = fullDueAmount > 0 ? fullDueAmount.toFixed(2) : "0.00";
@@ -654,7 +657,6 @@
             const isFullyPaid = (currentPaidAmount === true || currentPaidAmount >= fullDueAmount - 0.005);
 
             if (isFullyPaid) {
-                // Toggle back to unpaid / 0
                 monthlyPayments.landlordPayments[month][unitKey] = 0;
             } else {
                 const defaultVal = fullDueAmount > 0 ? fullDueAmount.toFixed(2) : "0.00";
@@ -688,10 +690,8 @@
                 { key: "Biju", name: "Biju", utilityMultiplier: 1, rent: rentDistribution["Biju"] }
             ];
 
-            // 1. Calculate Carryforwards from Previous Month
             const prevExpenses = expenses.filter(e => !e.archived && e.date && e.date.startsWith(prevMonth));
             if (prevExpenses.length > 0) {
-                // Household carryforward check
                 let prevSpent = { "Biren": 0, "Akshay & Kunjalbhabhi": 0, "Biju": 0 };
                 let prevTotal = 0;
 
@@ -711,13 +711,10 @@
                     "Biju": prevSharePerShare
                 };
 
-                const prevUnitShareCounts = { "Biren": 1, "Akshay & Kunjalbhabhi": 2, "Biju": 1 };
-
                 householdUnits.forEach(unitKey => {
                     const paid = prevSpent[unitKey] || 0;
                     const prevCarry = monthlyPayments.prevHouseholdCarry ? (monthlyPayments.prevHouseholdCarry[prevMonth]?.[unitKey] || 0) : 0;
-                    const baseTarget = prevUnitTargetShares[unitKey];
-                    const totalTarget = baseTarget + prevCarry;
+                    const totalTarget = prevUnitTargetShares[unitKey] + prevCarry;
                     const netBeforePayment = paid - totalTarget;
 
                     if (netBeforePayment < -0.005) {
@@ -734,7 +731,6 @@
                     }
                 });
 
-                // Landlord rent/utility carryforward check
                 let prevShaw = 0, prevEnmax = 0, prevAtco = 0;
                 prevExpenses.forEach(item => {
                     if (item.category === 'shaw') prevShaw += item.amount;
@@ -803,7 +799,6 @@
             document.getElementById('utility-total').innerText = utilityTotal.toFixed(2);
             document.getElementById('upstairs-total').innerText = upstairsTotalContribution.toFixed(2);
 
-            // Save current carryforwards lookup helper data
             if (!monthlyPayments.prevHouseholdCarry) monthlyPayments.prevHouseholdCarry = {};
             monthlyPayments.prevHouseholdCarry[selectedMonth] = carryforwardDebts;
             if (!monthlyPayments.prevLandlordCarry) monthlyPayments.prevLandlordCarry = {};
@@ -829,11 +824,12 @@
 
                 let actionCell = '';
                 if (isAdmin) {
+                    const btnClass = isFullyPaid ? 'btn-paid' : 'btn-unpaid';
                     actionCell = `
                         <td>
-                            <button class="btn-action ${isFullyPaid ? 'btn-delete' : 'btn-calc'}" 
+                            <button class="btn-action ${btnClass}" 
                                     onclick="promptLandlordPayment('${selectedMonth}', '${rowInfo.key}', ${totalDueJaimin})">
-                                ${isFullyPaid ? 'Unmark Paid ✓' : (paidAmount > 0 ? `Paid $${paidAmount.toFixed(2)} (Edit)` : 'Mark Paid')}
+                                ${isFullyPaid ? 'Paid & Settled ✓' : (paidAmount > 0 ? `Paid $${paidAmount.toFixed(2)} (Edit)` : 'Unpaid (Mark Paid)')}
                             </button>
                         </td>`;
                 } else if (isJaimin) {
@@ -845,7 +841,7 @@
                 let statusInfoHtml = '';
                 if (paidAmount > 0 && !isFullyPaid) {
                     statusInfoHtml = `<br><small style="color:#e67e22;">Paid: $${paidAmount.toFixed(2)} | Remaining: $${remainingDue.toFixed(2)}</small>`;
-                } else if (carriedOverRent > 0) {
+                } else if (carriedOverRent > 0 && !isFullyPaid) {
                     statusInfoHtml = `<br><small style="color:#d35400;">Carryforward: +$${carriedOverRent.toFixed(2)}</small>`;
                 }
 
@@ -878,7 +874,7 @@
                     const carriedOver = carryforwardDebts[unitKey] || 0;
                     const baseShare = householdSharePerShare * unitShareCounts[unitKey];
                     const targetShare = baseShare + carriedOver;
-                    const net = paid - targetShare; // positive = gets back, negative = owes
+                    const net = paid - targetShare;
 
                     const recordVal = monthlyPayments.householdPaid?.[selectedMonth]?.[unitKey];
                     let paidAmount = 0;
@@ -893,7 +889,6 @@
                     let formattedNet = '';
 
                     if (net >= 0) {
-                        // Creditor unit
                         const remainingGet = net - paidAmount;
                         if (remainingGet <= 0.005) {
                             statusClass = 'gets-back';
@@ -906,7 +901,6 @@
                             creditors.push({ person: unitKey, amount: remainingGet });
                         }
                     } else {
-                        // Debtor unit
                         const totalOwed = Math.abs(net);
                         const remainingDebt = totalOwed - paidAmount;
                         if (remainingDebt <= 0.005) {
@@ -924,15 +918,16 @@
                     let actionButtonHtml = '';
                     if (isAdmin) {
                         const isSettledCompletely = (net >= 0 ? (net - paidAmount <= 0.005) : (Math.abs(net) - paidAmount <= 0.005));
+                        const btnClass = isSettledCompletely ? 'btn-paid' : 'btn-unpaid';
                         actionButtonHtml = `
                             <td>
-                                <button class="btn-action ${isSettledCompletely ? 'btn-delete' : 'btn-calc'}" onclick="promptHouseholdPayment('${selectedMonth}', '${unitKey}', ${Math.abs(net)})">
-                                    ${isSettledCompletely ? 'Unmark Paid ✓' : (paidAmount > 0 ? `Paid $${paidAmount.toFixed(2)} (Edit)` : 'Mark Paid')}
+                                <button class="btn-action ${btnClass}" onclick="promptHouseholdPayment('${selectedMonth}', '${unitKey}', ${Math.abs(net)})">
+                                    ${isSettledCompletely ? 'Paid & Settled ✓' : (paidAmount > 0 ? `Paid $${paidAmount.toFixed(2)} (Edit)` : 'Unpaid (Mark Paid)')}
                                 </button>
                             </td>`;
                     }
 
-                    let rowSubInfo = carriedOver > 0 ? `<br><small style="color:#d35400;">Carryforward: +$${carriedOver.toFixed(2)}</small>` : '';
+                    let rowSubInfo = (carriedOver > 0 && !isSettledCompletely_check(net, paidAmount)) ? `<br><small style="color:#d35400;">Carryforward: +$${carriedOver.toFixed(2)}</small>` : '';
                     if (paidAmount > 0 && statusText.includes('Partial')) {
                         rowSubInfo += `<br><small style="color:#e67e22;">Paid so far: $${paidAmount.toFixed(2)}</small>`;
                     }
@@ -976,6 +971,10 @@
             }
 
             document.getElementById('report-card').style.display = 'block';
+        }
+
+        function isSettledCompletely_check(net, paidAmount) {
+            return net >= 0 ? (net - paidAmount <= 0.005) : (Math.abs(net) - paidAmount <= 0.005);
         }
 
         function exportToCSV() {
