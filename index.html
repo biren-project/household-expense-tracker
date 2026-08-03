@@ -217,7 +217,7 @@
             <h2 id="report-title">Monthly Settlement Report (Basement)</h2>
             
             <div class="summary-box">
-                <p><strong>Total General Household (4-Way):</strong> $<span id="household-total">0.00</span> <em>($<span id="household-share">0.00</span> / person)</em></p>
+                <p><strong>Total General Household (4-Way Split):</strong> $<span id="household-total">0.00</span> <em>($<span id="household-share">0.00</span> / share)</em></p>
                 <hr style="border:0; border-top: 1px dashed #ccc; margin: 10px 0;">
                 <p>🌐 <strong>Shaw Internet Total:</strong> $<span id="shaw-total">0.00</span> <em>($<span id="shaw-share">0.00</span> / person)</em></p>
                 <p>⚡ <strong>Enmax Electricity Total:</strong> $<span id="enmax-total">0.00</span> <em>($<span id="enmax-share">0.00</span> / person)</em></p>
@@ -254,7 +254,7 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>Person</th>
+                                <th>Person / Unit</th>
                                 <th>Total Paid</th>
                                 <th>Target Share</th>
                                 <th>Net Balance</th>
@@ -273,7 +273,6 @@
         const JSONBIN_BIN_ID = "6a63d85cf5f4af5e29bd604c";
         const JSONBIN_MASTER_KEY = "$2a$10$aGsMHmzawGqngUYQk4byNO6eOgVEFFObkr5LyuKv1hQ73QECFOWN2";
 
-        const householdResidents = ["Biren", "Akshay", "Kunjalbhabhi", "Biju"]; 
         const validUsers = ["Biren", "Akshay", "Kunjalbhabhi", "Biju", "Jaimin"];
         const TOTAL_UTILITY_RESIDENTS = 9; 
 
@@ -524,7 +523,7 @@
                 return;
             }
 
-            monthExpenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+            monthExpenses.sort((a, b) => new Date(b.date) - new Date(b.date));
 
             monthExpenses.forEach(item => {
                 const row = document.createElement('tr');
@@ -604,17 +603,17 @@
             }
         }
 
-        async function togglePaymentStatus(month, person) {
+        async function togglePaymentStatus(month, unitKey) {
             if (!isAdmin) return;
 
             if (!monthlyPayments[month]) {
                 monthlyPayments[month] = {};
             }
 
-            const currentStatus = monthlyPayments[month][person] || false;
+            const currentStatus = monthlyPayments[month][unitKey] || false;
             
             if (!currentStatus) {
-                const customAmount = prompt(`Enter amount paid by ${person} to settle share for ${month}:`, "");
+                const customAmount = prompt(`Enter amount paid by ${unitKey} to settle share for ${month}:`, "");
                 if (customAmount === null) return;
                 
                 const paidVal = parseFloat(customAmount);
@@ -623,15 +622,15 @@
                         id: Date.now(),
                         date: `${month}-01`,
                         category: 'household',
-                        paidBy: person,
-                        description: `Payment Settlement / Adjustment for ${person} (${month})`,
+                        paidBy: 'Akshay',
+                        description: `Payment Settlement / Adjustment for ${unitKey} (${month})`,
                         amount: paidVal,
                         archived: false
                     });
                 }
-                monthlyPayments[month][person] = true;
+                monthlyPayments[month][unitKey] = true;
             } else {
-                monthlyPayments[month][person] = false;
+                monthlyPayments[month][unitKey] = false;
             }
 
             calculateSettlement();
@@ -674,26 +673,36 @@
             const prevMonth = getPreviousMonthString(selectedMonth);
             
             let carryforwardDebts = {};
+            const householdUnits = ["Biren", "Akshay & Kunjalbhabhi", "Biju"];
+
             if (monthlyPayments[prevMonth]) {
                 const prevExpenses = expenses.filter(e => !e.archived && e.date && e.date.startsWith(prevMonth));
-                let prevSpent = {};
-                householdResidents.forEach(p => prevSpent[p] = 0);
+                let prevSpent = { "Biren": 0, "Akshay & Kunjalbhabhi": 0, "Biju": 0 };
                 let prevTotal = 0;
+
                 prevExpenses.forEach(item => {
                     if (!['shaw', 'enmax', 'atco'].includes(item.category)) {
                         prevTotal += item.amount;
-                        if (householdResidents.includes(item.paidBy)) {
-                            prevSpent[item.paidBy] += item.amount;
-                        }
+                        if (item.paidBy === "Biren") prevSpent["Biren"] += item.amount;
+                        else if (item.paidBy === "Biju") prevSpent["Biju"] += item.amount;
+                        else if (item.paidBy === "Akshay" || item.paidBy === "Kunjalbhabhi") prevSpent["Akshay & Kunjalbhabhi"] += item.amount;
                     }
                 });
-                const prevShare = prevTotal / householdResidents.length;
-                householdResidents.forEach(person => {
-                    const paid = prevSpent[person] || 0;
-                    const net = paid - prevShare;
-                    const isPaid = monthlyPayments[prevMonth][person] || false;
+
+                const prevSharePerShare = prevTotal / 4; 
+                const prevUnitTargetShares = {
+                    "Biren": prevSharePerShare,
+                    "Akshay & Kunjalbhabhi": prevSharePerShare * 2,
+                    "Biju": prevSharePerShare
+                };
+
+                householdUnits.forEach(unitKey => {
+                    const paid = prevSpent[unitKey] || 0;
+                    const target = prevUnitTargetShares[unitKey];
+                    const net = paid - target;
+                    const isPaid = monthlyPayments[prevMonth][unitKey] || false;
                     if (net < -0.005 && !isPaid) {
-                        carryforwardDebts[person] = Math.abs(net);
+                        carryforwardDebts[unitKey] = Math.abs(net);
                     }
                 });
             }
@@ -705,8 +714,7 @@
             document.getElementById('report-title').innerText = `Household Expense Settlement Report (${monthName})`;
 
             let householdTotal = 0, shawTotal = 0, enmaxTotal = 0, atcoTotal = 0;
-            const personHouseholdSpent = {};
-            householdResidents.forEach(person => { personHouseholdSpent[person] = 0; });
+            let unitHouseholdSpent = { "Biren": 0, "Akshay & Kunjalbhabhi": 0, "Biju": 0 };
 
             filteredExpenses.forEach(item => {
                 if (item.category === 'shaw') shawTotal += item.amount;
@@ -714,14 +722,14 @@
                 else if (item.category === 'atco') atcoTotal += item.amount;
                 else {
                     householdTotal += item.amount;
-                    if (householdResidents.includes(item.paidBy)) {
-                        personHouseholdSpent[item.paidBy] += item.amount;
-                    }
+                    if (item.paidBy === "Biren") unitHouseholdSpent["Biren"] += item.amount;
+                    else if (item.paidBy === "Biju") unitHouseholdSpent["Biju"] += item.amount;
+                    else if (item.paidBy === "Akshay" || item.paidBy === "Kunjalbhabhi") unitHouseholdSpent["Akshay & Kunjalbhabhi"] += item.amount;
                 }
             });
 
             const utilityTotal = shawTotal + enmaxTotal + atcoTotal;
-            const householdSharePerPerson = householdTotal / householdResidents.length; 
+            const householdSharePerShare = householdTotal / 4; 
             const shawSharePerPerson = shawTotal / TOTAL_UTILITY_RESIDENTS;         
             const enmaxSharePerPerson = enmaxTotal / TOTAL_UTILITY_RESIDENTS;       
             const atcoSharePerPerson = atcoTotal / TOTAL_UTILITY_RESIDENTS;         
@@ -730,7 +738,7 @@
             const upstairsTotalContribution = utilitySharePerPerson * 5; 
 
             document.getElementById('household-total').innerText = householdTotal.toFixed(2);
-            document.getElementById('household-share').innerText = householdSharePerPerson.toFixed(2);
+            document.getElementById('household-share').innerText = householdSharePerShare.toFixed(2);
             document.getElementById('shaw-total').innerText = shawTotal.toFixed(2);
             document.getElementById('shaw-share').innerText = shawSharePerPerson.toFixed(2);
             document.getElementById('enmax-total').innerText = enmaxTotal.toFixed(2);
@@ -740,7 +748,7 @@
             document.getElementById('utility-total').innerText = utilityTotal.toFixed(2);
             document.getElementById('upstairs-total').innerText = upstairsTotalContribution.toFixed(2);
 
-            // 1. Rent & Utility Breakdown (Combined Akshay & Kunjalbhabhi into one row)
+            // 1. Rent & Utility Breakdown
             const spendingBody = document.getElementById('spending-breakdown-list');
             spendingBody.innerHTML = '';
 
@@ -781,13 +789,20 @@
                 const settlementBody = document.getElementById('settlement-list');
                 settlementBody.innerHTML = '';
 
-                householdResidents.forEach(person => {
-                    const paid = personHouseholdSpent[person] || 0;
-                    const carriedOver = carryforwardDebts[person] || 0;
-                    const targetShare = householdSharePerPerson + carriedOver;
+                const unitShareCounts = {
+                    "Biren": 1,
+                    "Akshay & Kunjalbhabhi": 2,
+                    "Biju": 1
+                };
+
+                householdUnits.forEach(unitKey => {
+                    const paid = unitHouseholdSpent[unitKey] || 0;
+                    const carriedOver = carryforwardDebts[unitKey] || 0;
+                    const baseShare = householdSharePerShare * unitShareCounts[unitKey];
+                    const targetShare = baseShare + carriedOver;
                     const net = paid - targetShare;
 
-                    const isPaidForMonth = monthlyPayments[selectedMonth]?.[person] || false;
+                    const isPaidForMonth = monthlyPayments[selectedMonth]?.[unitKey] || false;
 
                     let statusClass = '';
                     let statusText = '';
@@ -802,28 +817,28 @@
                         statusText = `Gets back $${Math.abs(net).toFixed(2)}`;
                         formattedNet = `$${Math.abs(net).toFixed(2)}`;
                         if (net > 0.005) {
-                            creditors.push({ person, amount: net });
+                            creditors.push({ person: unitKey, amount: net });
                         }
                     } else {
                         statusClass = 'owes';
                         statusText = carriedOver > 0 ? `Owes $${Math.abs(net).toFixed(2)} (Incl. Carryforward)` : `Owes $${Math.abs(net).toFixed(2)}`;
                         formattedNet = `-$${Math.abs(net).toFixed(2)}`;
                         if (net < -0.005) {
-                            debtors.push({ person, amount: Math.abs(net) });
+                            debtors.push({ person: unitKey, amount: Math.abs(net) });
                         }
                     }
 
                     let actionButtonHtml = isAdmin ? `
                         <td>
                             <button class="btn-action ${isPaidForMonth ? 'btn-delete' : 'btn-calc'}" 
-                                    onclick="togglePaymentStatus('${selectedMonth}', '${person}')">
+                                    onclick="togglePaymentStatus('${selectedMonth}', '${unitKey}')">
                                 ${isPaidForMonth ? 'Unmark Paid' : 'Mark Paid'}
                             </button>
                         </td>` : '';
 
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td><strong>${person}</strong> ${carriedOver > 0 ? `<br><small style="color:#d35400;">Carryforward: +$${carriedOver.toFixed(2)}</small>` : ''}</td>
+                        <td><strong>${unitKey}</strong> ${carriedOver > 0 ? `<br><small style="color:#d35400;">Carryforward: +$${carriedOver.toFixed(2)}</small>` : ''}</td>
                         <td class="val-out-of-pocket">$${paid.toFixed(2)}</td>
                         <td class="val-share-owed">$${targetShare.toFixed(2)}</td>
                         <td class="${statusClass}">${formattedNet}</td>
