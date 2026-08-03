@@ -168,7 +168,7 @@
             <form id="expense-form" class="form-group">
                 <input type="date" id="date" required>
                 <select id="category" required>
-                    <option value="household" id="opt-household" selected>General Household (3-Way Split)</option>
+                    <option value="household" id="opt-household" selected>General Household (4-Way Split)</option>
                     <option value="shaw" class="utility-option">Shaw Internet (9-Way Split)</option>
                     <option value="enmax" class="utility-option">Enmax Electricity (9-Way Split)</option>
                     <option value="atco" class="utility-option">Atco Gas (9-Way Split)</option>
@@ -217,7 +217,7 @@
             <h2 id="report-title">Monthly Settlement Report (Basement)</h2>
             
             <div class="summary-box">
-                <p><strong>Total General Household (3-Way):</strong> $<span id="household-total">0.00</span> <em>($<span id="household-share">0.00</span> / unit)</em></p>
+                <p><strong>Total General Household (4-Way):</strong> $<span id="household-total">0.00</span> <em>($<span id="household-share">0.00</span> / person)</em></p>
                 <hr style="border:0; border-top: 1px dashed #ccc; margin: 10px 0;">
                 <p>🌐 <strong>Shaw Internet Total:</strong> $<span id="shaw-total">0.00</span> <em>($<span id="shaw-share">0.00</span> / person)</em></p>
                 <p>⚡ <strong>Enmax Electricity Total:</strong> $<span id="enmax-total">0.00</span> <em>($<span id="enmax-share">0.00</span> / person)</em></p>
@@ -233,7 +233,7 @@
                     <thead>
                         <tr>
                             <th>Person / Unit</th>
-                            <th>Utility Shares (2x)</th>
+                            <th>Utility Shares</th>
                             <th>Rent Share</th>
                             <th>Total Payable to Jaimin</th>
                             <th>Payment Status / Action</th>
@@ -254,7 +254,7 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>Person / Unit</th>
+                                <th>Person</th>
                                 <th>Total Paid</th>
                                 <th>Target Share</th>
                                 <th>Net Balance</th>
@@ -273,13 +273,14 @@
         const JSONBIN_BIN_ID = "6a63d85cf5f4af5e29bd604c";
         const JSONBIN_MASTER_KEY = "$2a$10$aGsMHmzawGqngUYQk4byNO6eOgVEFFObkr5LyuKv1hQ73QECFOWN2";
 
-        const mainHousehold = ["Biren", "Akshay & Kunjalbhabhi", "Biju"]; 
+        const householdResidents = ["Biren", "Akshay", "Kunjalbhabhi", "Biju"]; 
         const validUsers = ["Biren", "Akshay", "Kunjalbhabhi", "Biju", "Jaimin"];
         const TOTAL_UTILITY_RESIDENTS = 9; 
 
         const rentDistribution = {
             "Biren": 650,
-            "Akshay & Kunjalbhabhi": 650,
+            "Akshay": 325,
+            "Kunjalbhabhi": 325,
             "Biju": 0
         };
 
@@ -290,12 +291,6 @@
         let currentUser = urlParams.get('user') || '';
         let isAdmin = (currentUser === 'Biren');
         let isJaimin = (currentUser === 'Jaimin');
-
-        function getNormalizedUser(name) {
-            if (!name) return "";
-            if (name === "Akshay" || name === "Kunjalbhabhi") return "Akshay & Kunjalbhabhi";
-            return name;
-        }
 
         function initApp() {
             if (!currentUser || !validUsers.includes(currentUser)) {
@@ -543,7 +538,7 @@
                     `;
                 }
 
-                let categoryTag = '<span style="color:#2980b9;">Household (3-Way)</span>';
+                let categoryTag = '<span style="color:#2980b9;">Household (4-Way)</span>';
                 if (item.category === 'shaw') categoryTag = '<span style="color:#d35400; font-weight:bold;">Shaw Internet (9-Way)</span>';
                 if (item.category === 'enmax') categoryTag = '<span style="color:#f39c12; font-weight:bold;">Enmax Elec (9-Way)</span>';
                 if (item.category === 'atco') categoryTag = '<span style="color:#e74c3c; font-weight:bold;">Atco Gas (9-Way)</span>';
@@ -628,7 +623,7 @@
                         id: Date.now(),
                         date: `${month}-01`,
                         category: 'household',
-                        paidBy: person.includes('&') ? 'Akshay' : person,
+                        paidBy: person,
                         description: `Payment Settlement / Adjustment for ${person} (${month})`,
                         amount: paidVal,
                         archived: false
@@ -644,7 +639,7 @@
             await saveExpensesToCloud();
         }
 
-        async function toggleLandlordPaymentStatus(month, person, expectedAmount) {
+        async function toggleLandlordPaymentStatus(month, unitKey, expectedAmount) {
             if (!isAdmin && !isJaimin) return;
 
             if (!monthlyPayments.landlordPayments) {
@@ -654,18 +649,18 @@
                 monthlyPayments.landlordPayments[month] = {};
             }
 
-            const currentStatus = monthlyPayments.landlordPayments[month][person] || false;
+            const currentStatus = monthlyPayments.landlordPayments[month][unitKey] || false;
 
             if (!currentStatus) {
-                const customAmount = prompt(`Enter amount paid to Jaimin by ${person} for ${month} (Expected: $${expectedAmount.toFixed(2)}):`, expectedAmount.toFixed(2));
+                const customAmount = prompt(`Enter amount paid to Jaimin for ${unitKey} for ${month} (Expected: $${expectedAmount.toFixed(2)}):`, expectedAmount.toFixed(2));
                 if (customAmount === null) return;
 
                 const paidVal = parseFloat(customAmount);
                 if (!isNaN(paidVal) && paidVal > 0) {
-                    monthlyPayments.landlordPayments[month][person] = true;
+                    monthlyPayments.landlordPayments[month][unitKey] = true;
                 }
             } else {
-                monthlyPayments.landlordPayments[month][person] = false;
+                monthlyPayments.landlordPayments[month][unitKey] = false;
             }
 
             calculateSettlement();
@@ -682,18 +677,18 @@
             if (monthlyPayments[prevMonth]) {
                 const prevExpenses = expenses.filter(e => !e.archived && e.date && e.date.startsWith(prevMonth));
                 let prevSpent = {};
-                mainHousehold.forEach(p => prevSpent[p] = 0);
+                householdResidents.forEach(p => prevSpent[p] = 0);
                 let prevTotal = 0;
                 prevExpenses.forEach(item => {
                     if (!['shaw', 'enmax', 'atco'].includes(item.category)) {
                         prevTotal += item.amount;
-                        const unit = getNormalizedUser(item.paidBy);
-                        const match = mainHousehold.find(p => p === unit);
-                        if (match) prevSpent[match] += item.amount;
+                        if (householdResidents.includes(item.paidBy)) {
+                            prevSpent[item.paidBy] += item.amount;
+                        }
                     }
                 });
-                const prevShare = prevTotal / mainHousehold.length;
-                mainHousehold.forEach(person => {
+                const prevShare = prevTotal / householdResidents.length;
+                householdResidents.forEach(person => {
                     const paid = prevSpent[person] || 0;
                     const net = paid - prevShare;
                     const isPaid = monthlyPayments[prevMonth][person] || false;
@@ -711,7 +706,7 @@
 
             let householdTotal = 0, shawTotal = 0, enmaxTotal = 0, atcoTotal = 0;
             const personHouseholdSpent = {};
-            mainHousehold.forEach(person => { personHouseholdSpent[person] = 0; });
+            householdResidents.forEach(person => { personHouseholdSpent[person] = 0; });
 
             filteredExpenses.forEach(item => {
                 if (item.category === 'shaw') shawTotal += item.amount;
@@ -719,20 +714,19 @@
                 else if (item.category === 'atco') atcoTotal += item.amount;
                 else {
                     householdTotal += item.amount;
-                    const unit = getNormalizedUser(item.paidBy);
-                    const matchPerson = mainHousehold.find(p => p === unit);
-                    if (matchPerson) personHouseholdSpent[matchPerson] += item.amount;
+                    if (householdResidents.includes(item.paidBy)) {
+                        personHouseholdSpent[item.paidBy] += item.amount;
+                    }
                 }
             });
 
             const utilityTotal = shawTotal + enmaxTotal + atcoTotal;
-            const householdSharePerPerson = householdTotal / mainHousehold.length; 
+            const householdSharePerPerson = householdTotal / householdResidents.length; 
             const shawSharePerPerson = shawTotal / TOTAL_UTILITY_RESIDENTS;         
             const enmaxSharePerPerson = enmaxTotal / TOTAL_UTILITY_RESIDENTS;       
             const atcoSharePerPerson = atcoTotal / TOTAL_UTILITY_RESIDENTS;         
 
             const utilitySharePerPerson = shawSharePerPerson + enmaxSharePerPerson + atcoSharePerPerson;
-            const coupleUtilityShare = utilitySharePerPerson * 2;
             const upstairsTotalContribution = utilitySharePerPerson * 5; 
 
             document.getElementById('household-total').innerText = householdTotal.toFixed(2);
@@ -746,29 +740,34 @@
             document.getElementById('utility-total').innerText = utilityTotal.toFixed(2);
             document.getElementById('upstairs-total').innerText = upstairsTotalContribution.toFixed(2);
 
+            // 1. Rent & Utility Breakdown (Combined Akshay & Kunjalbhabhi into one row)
             const spendingBody = document.getElementById('spending-breakdown-list');
             spendingBody.innerHTML = '';
 
-            mainHousehold.forEach(person => {
-                const rentOwed = rentDistribution[person] || 0;
-                const multiplier = (person === "Akshay & Kunjalbhabhi") ? 2 : 1;
-                const personUtilityTotal = utilitySharePerPerson * multiplier;
-                const totalDueJaimin = personUtilityTotal + rentOwed;
-                const isLandlordPaid = monthlyPayments.landlordPayments?.[selectedMonth]?.[person] || false;
+            const landlordRows = [
+                { key: "Biren", name: "Biren", utilityMultiplier: 1, rent: rentDistribution["Biren"] },
+                { key: "Akshay & Kunjalbhabhi", name: "Akshay & Kunjalbhabhi", utilityMultiplier: 2, rent: rentDistribution["Akshay"] + rentDistribution["Kunjalbhabhi"] },
+                { key: "Biju", name: "Biju", utilityMultiplier: 1, rent: rentDistribution["Biju"] }
+            ];
+
+            landlordRows.forEach(rowInfo => {
+                const personUtilityTotal = utilitySharePerPerson * rowInfo.utilityMultiplier;
+                const totalDueJaimin = personUtilityTotal + rowInfo.rent;
+                const isLandlordPaid = monthlyPayments.landlordPayments?.[selectedMonth]?.[rowInfo.key] || false;
 
                 let actionCell = (isAdmin || isJaimin) ? `
                     <td>
                         <button class="btn-action ${isLandlordPaid ? 'btn-delete' : 'btn-calc'}" 
-                                onclick="toggleLandlordPaymentStatus('${selectedMonth}', '${person}', ${totalDueJaimin})">
+                                onclick="toggleLandlordPaymentStatus('${selectedMonth}', '${rowInfo.key}', ${totalDueJaimin})">
                             ${isLandlordPaid ? 'Unmark Paid ✓' : 'Mark Paid'}
                         </button>
                     </td>` : `<td>${isLandlordPaid ? '<span style="color:#27ae60; font-weight:bold;">Paid ✓</span>' : '<span style="color:#c0392b;">Unpaid</span>'}</td>`;
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td><strong>${person}</strong></td>
+                    <td><strong>${rowInfo.name}</strong></td>
                     <td class="val-utility-share">$${personUtilityTotal.toFixed(2)}</td>
-                    <td class="val-rent-share">$${rentOwed.toFixed(2)}</td>
+                    <td class="val-rent-share">$${rowInfo.rent.toFixed(2)}</td>
                     <td class="landlord-pay"><strong>$${totalDueJaimin.toFixed(2)}</strong></td>
                     ${actionCell}
                 `;
@@ -782,7 +781,7 @@
                 const settlementBody = document.getElementById('settlement-list');
                 settlementBody.innerHTML = '';
 
-                mainHousehold.forEach(person => {
+                householdResidents.forEach(person => {
                     const paid = personHouseholdSpent[person] || 0;
                     const carriedOver = carryforwardDebts[person] || 0;
                     const targetShare = householdSharePerPerson + carriedOver;
