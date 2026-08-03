@@ -148,7 +148,7 @@
 </head>
 <body>
 
-    <!-- Access Denied Screen for Invalid/Missing URL parameter -->
+    <!-- Access Denied Screen -->
     <div id="error-screen" class="no-access" style="display: none;">
         <h2>Access Restricted</h2>
         <p>You must use your designated personal URL link with your name included (e.g. <code>?user=Akshay</code>) to access the tracker.</p>
@@ -187,7 +187,7 @@
                 <h2 id="log-title" style="margin: 0;">Logged Expenses (Current Month)</h2>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     <label for="view-month-select"><strong>View Month:</strong> </label>
-                    <select id="view-month-select" onchange="renderExpenses(); if(isAdmin) calculateSettlement();" style="padding: 5px 10px; min-width: 150px;"></select>
+                    <select id="view-month-select" onchange="renderExpenses(); if(isAdmin || isJaimin) calculateSettlement();" style="padding: 5px 10px; min-width: 150px;"></select>
                     <button class="btn-export" onclick="exportToCSV()" title="Download CSV for Selected Month">Export CSV</button>
                 </div>
             </div>
@@ -236,6 +236,7 @@
                             <th>Utility Share</th>
                             <th>Rent Share</th>
                             <th>Total Payable to Jaimin</th>
+                            <th>Payment Status / Action</th>
                         </tr>
                     </thead>
                     <tbody id="spending-breakdown-list"></tbody>
@@ -244,24 +245,26 @@
 
             <br>
 
-            <h3>2. Internal Household Transfers (Groceries & Shared Expenses)</h3>
-            <ul id="transfers-list" class="payment-list"></ul>
+            <div id="household-transfers-section">
+                <h3>2. Internal Household Transfers (Groceries & Shared Expenses)</h3>
+                <ul id="transfers-list" class="payment-list"></ul>
 
-            <h3>3. Individual Balances & Settlement Summary</h3>
-            <div class="table-responsive">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Person</th>
-                            <th>Total Paid</th>
-                            <th>Target Share</th>
-                            <th>Net Balance</th>
-                            <th>Status</th>
-                            <th>Admin Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="settlement-list"></tbody>
-                </table>
+                <h3>3. Individual Balances & Settlement Summary</h3>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Person</th>
+                                <th>Total Paid</th>
+                                <th>Target Share</th>
+                                <th>Net Balance</th>
+                                <th>Status</th>
+                                <th id="household-action-col" style="display: none;">Admin Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="settlement-list"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -282,9 +285,8 @@
         };
 
         let expenses = [];
-        let monthlyPayments = {}; 
+        let monthlyPayments = {}; // { "YYYY-MM": { "Biren": true, ... }, landlordPayments: { "YYYY-MM": { "Biren": true, ... } } }
 
-        // Read user strictly from URL parameter (?user=...)
         const urlParams = new URLSearchParams(window.location.search);
         let currentUser = urlParams.get('user') || '';
         let isAdmin = (currentUser === 'Biren');
@@ -306,11 +308,15 @@
                 document.getElementById('clear-btn').style.display = 'block';
                 document.getElementById('admin-month-filter').style.display = 'flex';
                 document.getElementById('actions-col').style.display = 'table-cell';
+                document.getElementById('household-action-col').style.display = 'table-cell';
             } else if (isJaimin) {
                 document.getElementById('role-badge').innerHTML = '<span class="landlord-badge">LANDLORD / UTILITY MANAGER</span>';
                 const optHousehold = document.getElementById('opt-household');
                 if (optHousehold) optHousehold.remove();
                 document.getElementById('category').value = 'shaw';
+                
+                // Hide general household transfers/settlements for Jaimin, keep rental/utility breakdown visible
+                document.getElementById('household-transfers-section').style.display = 'none';
             } else {
                 document.getElementById('role-badge').innerHTML = '<span class="user-badge">PERSONAL ACCOUNT</span>';
                 document.querySelectorAll('.utility-option').forEach(opt => opt.remove());
@@ -351,6 +357,11 @@
                 expenses = data.record.expenses || [];
                 monthlyPayments = data.record.monthlyPayments || {};
                 
+                // Ensure landlordPayments structure exists
+                if (!monthlyPayments.landlordPayments) {
+                    monthlyPayments.landlordPayments = {};
+                }
+
                 localStorage.setItem('cached_expenses', JSON.stringify(expenses));
                 localStorage.setItem('cached_payments', JSON.stringify(monthlyPayments));
                 
@@ -358,6 +369,9 @@
                 
                 populateMonthDropdown();
                 renderExpenses();
+                if (isAdmin || isJaimin) {
+                    calculateSettlement();
+                }
             } catch (err) {
                 console.error('Error fetching cloud data:', err);
                 
@@ -366,9 +380,14 @@
                 if (cached) {
                     expenses = JSON.parse(cached);
                     if (cachedPayments) monthlyPayments = JSON.parse(cachedPayments);
+                    if (!monthlyPayments.landlordPayments) monthlyPayments.landlordPayments = {};
+                    
                     statusEl.innerText = 'Offline mode: Loaded cached local data. Retrying cloud...';
                     populateMonthDropdown();
                     renderExpenses();
+                    if (isAdmin || isJaimin) {
+                        calculateSettlement();
+                    }
                 } else {
                     statusEl.innerText = 'Sync failed. Retrying in 5 seconds...';
                 }
@@ -473,7 +492,7 @@
             document.getElementById('view-month-select').value = newExpenseMonth;
 
             renderExpenses();
-            if (isAdmin && document.getElementById('report-card').style.display === 'block') {
+            if ((isAdmin || isJaimin) && document.getElementById('report-card').style.display === 'block') {
                 calculateSettlement();
             }
             
@@ -622,8 +641,37 @@
             await saveExpensesToCloud();
         }
 
+        async function toggleLandlordPaymentStatus(month, person, expectedAmount) {
+            if (!isAdmin && !isJaimin) return;
+
+            if (!monthlyPayments.landlordPayments) {
+                monthlyPayments.landlordPayments = {};
+            }
+            if (!monthlyPayments.landlordPayments[month]) {
+                monthlyPayments.landlordPayments[month] = {};
+            }
+
+            const currentStatus = monthlyPayments.landlordPayments[month][person] || false;
+
+            if (!currentStatus) {
+                const customAmount = prompt(`Enter amount paid to Jaimin by ${person} for ${month} (Expected: $${expectedAmount.toFixed(2)}):`, expectedAmount.toFixed(2));
+                if (customAmount === null) return;
+
+                const paidVal = parseFloat(customAmount);
+                if (!isNaN(paidVal) && paidVal > 0) {
+                    // Optional adjustment log or tracking record update
+                    monthlyPayments.landlordPayments[month][person] = true;
+                }
+            } else {
+                monthlyPayments.landlordPayments[month][person] = false;
+            }
+
+            calculateSettlement();
+            await saveExpensesToCloud();
+        }
+
         function calculateSettlement() {
-            if (!isAdmin) return;
+            if (!isAdmin && !isJaimin) return;
 
             const selectedMonth = document.getElementById('view-month-select').value;
             const prevMonth = getPreviousMonthString(selectedMonth);
@@ -700,6 +748,15 @@
             mainHousehold.forEach(person => {
                 const rentOwed = rentDistribution[person] || 0;
                 const totalDueJaimin = utilitySharePerPerson + rentOwed;
+                const isLandlordPaid = monthlyPayments.landlordPayments?.[selectedMonth]?.[person] || false;
+
+                let actionCell = (isAdmin || isJaimin) ? `
+                    <td>
+                        <button class="btn-action ${isLandlordPaid ? 'btn-delete' : 'btn-calc'}" 
+                                onclick="toggleLandlordPaymentStatus('${selectedMonth}', '${person}', ${totalDueJaimin})">
+                            ${isLandlordPaid ? 'Unmark Paid ✓' : 'Mark Paid'}
+                        </button>
+                    </td>` : `<td>${isLandlordPaid ? '<span style="color:#27ae60; font-weight:bold;">Paid ✓</span>' : '<span style="color:#c0392b;">Unpaid</span>'}</td>`;
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -707,90 +764,94 @@
                     <td class="val-utility-share">$${utilitySharePerPerson.toFixed(2)}</td>
                     <td class="val-rent-share">$${rentOwed.toFixed(2)}</td>
                     <td class="landlord-pay"><strong>$${totalDueJaimin.toFixed(2)}</strong></td>
+                    ${actionCell}
                 `;
                 spendingBody.appendChild(row);
             });
 
-            let debtors = [];
-            let creditors = [];
+            // Skip rendering internal household transfers if Jaimin is logged in
+            if (!isJaimin) {
+                let debtors = [];
+                let creditors = [];
 
-            const settlementBody = document.getElementById('settlement-list');
-            settlementBody.innerHTML = '';
+                const settlementBody = document.getElementById('settlement-list');
+                settlementBody.innerHTML = '';
 
-            mainHousehold.forEach(person => {
-                const paid = personHouseholdSpent[person] || 0;
-                const carriedOver = carryforwardDebts[person] || 0;
-                const targetShare = householdSharePerPerson + carriedOver;
-                const net = paid - targetShare;
+                mainHousehold.forEach(person => {
+                    const paid = personHouseholdSpent[person] || 0;
+                    const carriedOver = carryforwardDebts[person] || 0;
+                    const targetShare = householdSharePerPerson + carriedOver;
+                    const net = paid - targetShare;
 
-                const isPaidForMonth = monthlyPayments[selectedMonth]?.[person] || false;
+                    const isPaidForMonth = monthlyPayments[selectedMonth]?.[person] || false;
 
-                let statusClass = '';
-                let statusText = '';
-                let formattedNet = '';
+                    let statusClass = '';
+                    let statusText = '';
+                    let formattedNet = '';
 
-                if (isPaidForMonth) {
-                    statusClass = 'gets-back';
-                    statusText = 'Paid & Settled ✓';
-                    formattedNet = `$0.00`;
-                } else if (net >= 0) {
-                    statusClass = 'gets-back';
-                    statusText = `Gets back $${Math.abs(net).toFixed(2)}`;
-                    formattedNet = `$${Math.abs(net).toFixed(2)}`;
-                    if (net > 0.005) {
-                        creditors.push({ person, amount: net });
+                    if (isPaidForMonth) {
+                        statusClass = 'gets-back';
+                        statusText = 'Paid & Settled ✓';
+                        formattedNet = `$0.00`;
+                    } else if (net >= 0) {
+                        statusClass = 'gets-back';
+                        statusText = `Gets back $${Math.abs(net).toFixed(2)}`;
+                        formattedNet = `$${Math.abs(net).toFixed(2)}`;
+                        if (net > 0.005) {
+                            creditors.push({ person, amount: net });
+                        }
+                    } else {
+                        statusClass = 'owes';
+                        statusText = carriedOver > 0 ? `Owes $${Math.abs(net).toFixed(2)} (Incl. Carryforward)` : `Owes $${Math.abs(net).toFixed(2)}`;
+                        formattedNet = `-$${Math.abs(net).toFixed(2)}`;
+                        if (net < -0.005) {
+                            debtors.push({ person, amount: Math.abs(net) });
+                        }
                     }
+
+                    let actionButtonHtml = isAdmin ? `
+                        <td>
+                            <button class="btn-action ${isPaidForMonth ? 'btn-delete' : 'btn-calc'}" 
+                                    onclick="togglePaymentStatus('${selectedMonth}', '${person}')">
+                                ${isPaidForMonth ? 'Unmark Paid' : 'Mark Paid'}
+                            </button>
+                        </td>` : '';
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><strong>${person}</strong> ${carriedOver > 0 ? `<br><small style="color:#d35400;">Carryforward: +$${carriedOver.toFixed(2)}</small>` : ''}</td>
+                        <td class="val-out-of-pocket">$${paid.toFixed(2)}</td>
+                        <td class="val-share-owed">$${targetShare.toFixed(2)}</td>
+                        <td class="${statusClass}">${formattedNet}</td>
+                        <td class="${statusClass}">${statusText}</td>
+                        ${actionButtonHtml}
+                    `;
+                    settlementBody.appendChild(row);
+                });
+
+                const transfersList = document.getElementById('transfers-list');
+                transfersList.innerHTML = '';
+
+                if (debtors.length === 0 && creditors.length === 0) {
+                    transfersList.innerHTML = '<li>Everyone is settled up equally for household expenses!</li>';
                 } else {
-                    statusClass = 'owes';
-                    statusText = carriedOver > 0 ? `Owes $${Math.abs(net).toFixed(2)} (Incl. Carryforward)` : `Owes $${Math.abs(net).toFixed(2)}`;
-                    formattedNet = `-$${Math.abs(net).toFixed(2)}`;
-                    if (net < -0.005) {
-                        debtors.push({ person, amount: Math.abs(net) });
+                    let dIndex = 0, cIndex = 0;
+                    while (dIndex < debtors.length && cIndex < creditors.length) {
+                        let debtor = debtors[dIndex];
+                        let creditor = creditors[cIndex];
+
+                        let transferAmount = Math.min(debtor.amount, creditor.amount);
+
+                        const li = document.createElement('li');
+                        li.innerHTML = `<strong>${debtor.person}</strong> owes <strong>${creditor.person}</strong>: <span style="color:#27ae60; font-weight:bold;">$${transferAmount.toFixed(2)}</span>`;
+                        transfersList.appendChild(li);
+
+                        debtor.amount -= transferAmount;
+                        creditor.amount -= transferAmount;
+
+                        if (debtor.amount < 0.01) dIndex++;
+                        if (creditor.amount < 0.01) cIndex++;
                     }
-                }
-
-                let actionButtonHtml = isAdmin ? `
-                    <td>
-                        <button class="btn-action ${isPaidForMonth ? 'btn-delete' : 'btn-calc'}" 
-                                onclick="togglePaymentStatus('${selectedMonth}', '${person}')">
-                            ${isPaidForMonth ? 'Unmark Paid' : 'Mark Paid'}
-                        </button>
-                    </td>` : '';
-
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td><strong>${person}</strong> ${carriedOver > 0 ? `<br><small style="color:#d35400;">Carryforward: +$${carriedOver.toFixed(2)}</small>` : ''}</td>
-                    <td class="val-out-of-pocket">$${paid.toFixed(2)}</td>
-                    <td class="val-share-owed">$${targetShare.toFixed(2)}</td>
-                    <td class="${statusClass}">${formattedNet}</td>
-                    <td class="${statusClass}">${statusText}</td>
-                    ${actionButtonHtml}
-                `;
-                settlementBody.appendChild(row);
-            });
-
-            const transfersList = document.getElementById('transfers-list');
-            transfersList.innerHTML = '';
-
-            if (debtors.length === 0 && creditors.length === 0) {
-                transfersList.innerHTML = '<li>Everyone is settled up equally for household expenses!</li>';
-            } else {
-                let dIndex = 0, cIndex = 0;
-                while (dIndex < debtors.length && cIndex < creditors.length) {
-                    let debtor = debtors[dIndex];
-                    let creditor = creditors[cIndex];
-
-                    let transferAmount = Math.min(debtor.amount, creditor.amount);
-
-                    const li = document.createElement('li');
-                    li.innerHTML = `<strong>${debtor.person}</strong> owes <strong>${creditor.person}</strong>: <span style="color:#27ae60; font-weight:bold;">$${transferAmount.toFixed(2)}</span>`;
-                    transfersList.appendChild(li);
-
-                    debtor.amount -= transferAmount;
-                    creditor.amount -= transferAmount;
-
-                    if (debtor.amount < 0.01) dIndex++;
-                    if (creditor.amount < 0.01) cIndex++;
                 }
             }
 
