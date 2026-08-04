@@ -167,11 +167,11 @@
 
         <h1>253 Herron Mews Basement Household Expense Tracker</h1>
 
-        <!-- Personal Quick Summary Card (Always Shows Previous Finalized Month Balances) -->
+        <!-- Personal Quick Summary Card (Shows Selected Month Standing) -->
         <div class="card" id="personal-summary-card" style="background: #eef7fe; border-left: 5px solid #2980b9;">
-            <h2 style="margin-top: 0; color: #2c3e50;">My Finalized Past Month Balances (<span id="summary-month-label">Previous Month</span>)</h2>
+            <h2 style="margin-top: 0; color: #2c3e50;">My Summary Standing (<span id="summary-month-label">Active Month</span>)</h2>
             <div id="personal-summary-content">
-                <p>Loading past month finalized standing...</p>
+                <p>Loading standing...</p>
             </div>
         </div>
 
@@ -225,7 +225,7 @@
             </div>
         </div>
 
-        <div class="card" id="report-card" style="display: none;">
+        <div class="card" id="report-card">
             <h2 id="report-title">Monthly Settlement Report (Basement)</h2>
             
             <div class="summary-box">
@@ -431,12 +431,7 @@
             if (selectedBefore && months.includes(selectedBefore)) {
                 monthSelect.value = selectedBefore;
             } else {
-                const prevMonthDefault = getPreviousMonthString(currentMonth);
-                if (months.includes(prevMonthDefault)) {
-                    monthSelect.value = prevMonthDefault;
-                } else {
-                    monthSelect.value = currentMonth;
-                }
+                monthSelect.value = currentMonth;
             }
         }
 
@@ -669,12 +664,9 @@
 
         function calculateGlobalAndPersonalStandings() {
             const selectedMonth = document.getElementById('view-month-select').value;
-            const currentActiveMonth = getLocalMonthString();
             const prevMonth = getPreviousMonthString(selectedMonth);
-            
-            const targetSummaryMonth = getPreviousMonthString(currentActiveMonth);
 
-            const [tsYear, tsMonth] = targetSummaryMonth.split('-');
+            const [tsYear, tsMonth] = selectedMonth.split('-');
             const targetMonthName = new Date(tsYear, tsMonth - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
             document.getElementById('summary-month-label').innerText = targetMonthName;
 
@@ -981,14 +973,7 @@
                 });
             }
 
-            const reportCard = document.getElementById('report-card');
-            if (!isAdmin && !isJaimin && selectedMonth === currentActiveMonth) {
-                reportCard.style.display = 'none';
-            } else {
-                reportCard.style.display = 'block';
-            }
-
-            computeAndRenderPastMonthPersonalSummary(targetSummaryMonth);
+            computeAndRenderPastMonthPersonalSummary(selectedMonth);
         }
 
         function computeAndRenderPastMonthPersonalSummary(summaryMonth) {
@@ -1235,7 +1220,6 @@
             await saveExpensesToCloud();
             populateMonthDropdown();
             renderExpenses();
-            document.getElementById('report-card').style.display = 'none';
         }
 
         // Initialize application on load
