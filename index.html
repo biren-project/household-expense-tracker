@@ -681,9 +681,8 @@
             const selectedMonth = document.getElementById('view-month-select').value;
             const prevMonth = getPreviousMonthString(selectedMonth);
             
-            // For the Personal Summary Card, we explicitly compute the PREVIOUS finalized month
-            const currentActiveMonth = getLocalMonthString();
-            const targetSummaryMonth = getPreviousMonthString(currentActiveMonth);
+            // Personal Summary Card uses the selected dropdown view month instead of locked previous month
+            const targetSummaryMonth = selectedMonth;
 
             const [tsYear, tsMonth] = targetSummaryMonth.split('-');
             const targetMonthName = new Date(tsYear, tsMonth - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -991,7 +990,7 @@
                 });
             }
 
-            // Compute and render the Personal Summary Card specifically for the PAST FINALIZED MONTH
+            // Compute and render the Personal Summary Card matching the selected dropdown month
             computeAndRenderPastMonthPersonalSummary(targetSummaryMonth);
         }
 
@@ -1045,11 +1044,11 @@
 
                 const recordVal = monthlyPayments.landlordPayments?.[summaryMonth]?.[rowInfo.key];
                 let paidAmount = 0;
-                if (recordVal === true) paidAmount = totalDueJaimin;
+                if (recordVal === true || recordVal >= totalDueJaimin - 0.005) paidAmount = totalDueJaimin;
                 else if (typeof recordVal === 'number') paidAmount = recordVal;
 
                 const remainingDue = totalDueJaimin - paidAmount;
-                const isFullyPaid = (totalDueJaimin > 0 && remainingDue <= 0.005) || (totalDueJaimin === 0);
+                const isFullyPaid = (totalDueJaimin > 0 && remainingDue <= 0.005) || (totalDueJaimin === 0) || (recordVal === true);
 
                 landlordBreakdownData[rowInfo.key] = {
                     totalDue: totalDueJaimin,
@@ -1074,14 +1073,15 @@
                 const recordVal = monthlyPayments.householdPaid?.[summaryMonth]?.[unitKey];
                 let paidAmount = 0;
                 if (recordVal === true) {
-                    if (net < 0) paidAmount = Math.abs(net);
-                    else paidAmount = net;
+                    paidAmount = Math.abs(net);
                 } else if (typeof recordVal === 'number') {
                     paidAmount = recordVal;
                 }
 
                 let isSettledCompletely = false;
-                if (net >= 0) {
+                if (recordVal === true) {
+                    isSettledCompletely = true;
+                } else if (net >= 0) {
                     const remainingGet = net - paidAmount;
                     if (remainingGet <= 0.005 || paidAmount >= net - 0.005) {
                         isSettledCompletely = true;
