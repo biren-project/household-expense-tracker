@@ -827,11 +827,12 @@
                 
                 if (canEditRent) {
                     const btnClass = isFullyPaid ? 'btn-paid' : 'btn-unpaid';
+                    let btnText = isFullyPaid ? 'Paid & Settled ✓' : (paidAmount > 0 ? `Paid $${paidAmount.toFixed(2)} (Mark Settled)` : 'Mark Paid & Settled');
                     actionCell = `
                         <td>
                             <button class="btn-action ${btnClass}" 
                                     onclick="promptLandlordPayment('${selectedMonth}', '${rowInfo.key}', ${totalDueJaimin})">
-                                ${isFullyPaid ? 'Paid & Settled ✓' : (paidAmount > 0 ? `Paid $${paidAmount.toFixed(2)} (Mark Settled)` : 'Unpaid (Mark Paid & Settled)')}
+                                ${btnText}
                             </button>
                         </td>`;
                 } else {
@@ -914,10 +915,11 @@
                 let actionButtonHtml = '';
                 if (isAdmin) {
                     const btnClass = isSettledCompletely ? 'btn-paid' : 'btn-unpaid';
+                    let btnText = isSettledCompletely ? 'Paid & Settled ✓' : (paidAmount > 0 ? `Paid $${paidAmount.toFixed(2)} (Edit)` : 'Mark Paid & Settled');
                     actionButtonHtml = `
                         <td>
                             <button class="btn-action ${btnClass}" onclick="promptHouseholdPayment('${selectedMonth}', '${unitKey}', ${Math.abs(net)})">
-                                ${isSettledCompletely ? 'Paid & Settled ✓' : (paidAmount > 0 ? `Paid $${paidAmount.toFixed(2)} (Edit)` : 'Unpaid (Mark Paid)')}
+                                ${btnText}
                             </button>
                         </td>`;
                 }
