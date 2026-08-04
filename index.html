@@ -431,7 +431,13 @@
             if (selectedBefore && months.includes(selectedBefore)) {
                 monthSelect.value = selectedBefore;
             } else {
-                monthSelect.value = currentMonth;
+                // CHANGED DEFAULT: Automatically select the previous month instead of the current active month
+                const prevMonthDefault = getPreviousMonthString(currentMonth);
+                if (months.includes(prevMonthDefault)) {
+                    monthSelect.value = prevMonthDefault;
+                } else {
+                    monthSelect.value = currentMonth;
+                }
             }
         }
 
