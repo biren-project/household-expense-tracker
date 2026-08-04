@@ -167,9 +167,9 @@
 
         <h1>253 Herron Mews Basement Household Expense Tracker</h1>
 
-        <!-- Personal Quick Summary Card (Shows Previous Month Standing/Balances Owed) -->
+        <!-- Personal Quick Summary Card -->
         <div class="card" id="personal-summary-card" style="background: #eef7fe; border-left: 5px solid #2980b9;">
-            <h2 style="margin-top: 0; color: #2c3e50;">My Outstanding <span id="summary-month-label">Previous Month Balance</span></h2>
+            <h2 style="margin-top: 0; color: #2c3e50;">My Outstanding Balance for Previous Month of July - 2026</h2>
             <div id="personal-summary-content">
                 <p>Loading standing...</p>
             </div>
@@ -687,7 +687,24 @@
             const isGenerated = generatedReports[selectedMonth] === true;
             const reportCard = document.getElementById('report-card');
 
-            if (isGenerated) {
+            if (!isGenerated) {
+                reportCard.style.display = 'none';
+                return;
+            }
+
+            // Admins can always see generated reports for review/management
+            if (isAdmin) {
+                reportCard.style.display = 'block';
+                calculateSettlementForMonth(selectedMonth);
+                return;
+            }
+
+            // For standard users, verify if the selected month has officially ended
+            const [year, month] = selectedMonth.split('-').map(Number);
+            const monthEndPlusOne = new Date(year, month, 1);
+            const currentDate = new Date();
+
+            if (currentDate >= monthEndPlusOne) {
                 reportCard.style.display = 'block';
                 calculateSettlementForMonth(selectedMonth);
             } else {
