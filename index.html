@@ -431,7 +431,6 @@
             if (selectedBefore && months.includes(selectedBefore)) {
                 monthSelect.value = selectedBefore;
             } else {
-                // CHANGED DEFAULT: Automatically select the previous month instead of the current active month
                 const prevMonthDefault = getPreviousMonthString(currentMonth);
                 if (months.includes(prevMonthDefault)) {
                     monthSelect.value = prevMonthDefault;
@@ -648,7 +647,11 @@
         }
 
         async function promptLandlordPayment(month, unitKey, fullDueAmount) {
-            if (!isAdmin && !isJaimin) return;
+            // UPDATED REQUIREMENT: When called by user/landlord/admin, toggle/mark full payment status directly or verify
+            if (!isAdmin && !isJaimin && currentUser !== unitKey && !(unitKey === 'Akshay & Kunjalbhabhi' && (currentUser === 'Akshay' || currentUser === 'Kunjalbhabhi'))) {
+                alert("You do not have permission to update payment status for this unit.");
+                return;
+            }
 
             if (!monthlyPayments.landlordPayments) {
                 monthlyPayments.landlordPayments = {};
@@ -661,18 +664,11 @@
             const isFullyPaid = (currentPaidAmount === true || currentPaidAmount >= fullDueAmount - 0.005);
 
             if (isFullyPaid) {
+                // If already paid, toggle back to unpaid/0
                 monthlyPayments.landlordPayments[month][unitKey] = 0;
             } else {
-                const defaultVal = fullDueAmount > 0 ? fullDueAmount.toFixed(2) : "0.00";
-                const inputStr = prompt(`Enter payment amount received for ${unitKey} (Total Due: $${defaultVal}):`, defaultVal);
-                if (inputStr === null) return;
-
-                const paidAmt = parseFloat(inputStr);
-                if (isNaN(paidAmt) || paidAmt < 0) {
-                    alert("Please enter a valid payment amount.");
-                    return;
-                }
-                monthlyPayments.landlordPayments[month][unitKey] = paidAmt;
+                // Instantly mark full amount paid & settled when they have paid
+                monthlyPayments.landlordPayments[month][unitKey] = fullDueAmount;
             }
 
             calculateGlobalAndPersonalStandings();
@@ -688,7 +684,6 @@
             const currentActiveMonth = getLocalMonthString();
             const prevMonth = getPreviousMonthString(selectedMonth);
             
-            // Personal Summary Card ALWAYS strictly looks at the previous finalized month (e.g. July when viewing August)
             const targetSummaryMonth = getPreviousMonthString(currentActiveMonth);
 
             const [tsYear, tsMonth] = targetSummaryMonth.split('-');
@@ -837,19 +832,19 @@
                 const isFullyPaid = (totalDueJaimin > 0 && remainingDue <= 0.005) || (totalDueJaimin === 0);
 
                 let actionCell = '';
-                if (isAdmin) {
+                const canEditRent = isAdmin || isJaimin || currentUser === rowInfo.name || (rowInfo.key === 'Akshay & Kunjalbhabhi' && (currentUser === 'Akshay' || currentUser === 'Kunjalbhabhi'));
+                
+                if (canEditRent) {
                     const btnClass = isFullyPaid ? 'btn-paid' : 'btn-unpaid';
                     actionCell = `
                         <td>
                             <button class="btn-action ${btnClass}" 
                                     onclick="promptLandlordPayment('${selectedMonth}', '${rowInfo.key}', ${totalDueJaimin})">
-                                ${isFullyPaid ? 'Paid & Settled ✓' : (paidAmount > 0 ? `Paid $${paidAmount.toFixed(2)} (Edit)` : 'Unpaid (Mark Paid)')}
+                                ${isFullyPaid ? 'Paid & Settled ✓' : (paidAmount > 0 ? `Paid $${paidAmount.toFixed(2)} (Mark Settled)` : 'Unpaid (Mark Paid & Settled)')}
                             </button>
                         </td>`;
-                } else if (isJaimin) {
-                    actionCell = `<td>${isFullyPaid ? '<span style="color:#27ae60; font-weight:bold;">Paid & Settled ✓</span>' : (paidAmount > 0 ? `<span style="color:#e67e22; font-weight:bold;">Partial: $${paidAmount.toFixed(2)} / $${totalDueJaimin.toFixed(2)}</span>` : '<span style="color:#c0392b; font-weight:bold;">Unpaid</span>')}</td>`;
                 } else {
-                    actionCell = `<td>${isFullyPaid ? '<span style="color:#27ae60; font-weight:bold;">Paid & Settled ✓</span>' : (paidAmount > 0 ? `<span style="color:#e67e22;">Partial ($${paidAmount.toFixed(2)})</span>` : '<span style="color:#c0392b; font-weight:bold;">Unpaid</span>')}</td>`;
+                    actionCell = `<td>${isFullyPaid ? '<span style="color:#27ae60; font-weight:bold;">Paid & Settled ✓</span>' : (paidAmount > 0 ? `<span style="color:#e67e22; font-weight:bold;">Partial: $${paidAmount.toFixed(2)} / $${totalDueJaimin.toFixed(2)}</span>` : '<span style="color:#c0392b; font-weight:bold;">Unpaid</span>')}</td>`;
                 }
 
                 let statusInfoHtml = '';
@@ -961,7 +956,6 @@
                 settlementBody.appendChild(row);
             });
 
-            // Calculate precise peer-to-peer household transfer lines
             let tempDebtors = JSON.parse(JSON.stringify(debtors));
             let tempCreditors = JSON.parse(JSON.stringify(creditors));
             let transferListDetailed = [];
@@ -997,7 +991,6 @@
                 });
             }
 
-            // Hide the Settlement Report card for regular users if viewing the active current month (August 2026)
             const reportCard = document.getElementById('report-card');
             if (!isAdmin && !isJaimin && selectedMonth === currentActiveMonth) {
                 reportCard.style.display = 'none';
@@ -1005,7 +998,6 @@
                 reportCard.style.display = 'block';
             }
 
-            // Compute and render the Personal Summary Card matching the previous finalized month
             computeAndRenderPastMonthPersonalSummary(targetSummaryMonth);
         }
 
