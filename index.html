@@ -692,14 +692,12 @@
                 return;
             }
 
-            // Admins can always see generated reports for review/management
             if (isAdmin) {
                 reportCard.style.display = 'block';
                 calculateSettlementForMonth(selectedMonth);
                 return;
             }
 
-            // For standard users, verify if the selected month has officially ended
             const [year, month] = selectedMonth.split('-').map(Number);
             const monthEndPlusOne = new Date(year, month, 1);
             const currentDate = new Date();
@@ -1274,7 +1272,6 @@
             checkAndToggleReportVisibility();
         }
 
-        // Initialize application on load
         initApp();
     </script>
 </body>
