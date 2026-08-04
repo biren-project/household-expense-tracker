@@ -684,37 +684,17 @@
 
         function checkAndToggleReportVisibility() {
             const selectedMonth = document.getElementById('view-month-select').value;
-            const currentMonth = getLocalMonthString();
             const isGenerated = generatedReports[selectedMonth] === true;
             const reportCard = document.getElementById('report-card');
 
-            // If it's the current active month, hide by default unless explicitly generated
-            if (selectedMonth === currentMonth && !isGenerated) {
-                reportCard.style.display = 'none';
-                return;
-            }
-
+            // Strictly require explicit manual generation for any month unless flagged as generated
             if (!isGenerated) {
                 reportCard.style.display = 'none';
                 return;
             }
 
-            if (isAdmin) {
-                reportCard.style.display = 'block';
-                calculateSettlementForMonth(selectedMonth);
-                return;
-            }
-
-            const [year, month] = selectedMonth.split('-').map(Number);
-            const monthEndPlusOne = new Date(year, month, 1);
-            const currentDate = new Date();
-
-            if (currentDate >= monthEndPlusOne) {
-                reportCard.style.display = 'block';
-                calculateSettlementForMonth(selectedMonth);
-            } else {
-                reportCard.style.display = 'none';
-            }
+            reportCard.style.display = 'block';
+            calculateSettlementForMonth(selectedMonth);
         }
 
         function computeAndRenderPersonalSummary() {
