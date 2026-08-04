@@ -167,6 +167,14 @@
 
         <h1>253 Herron Mews Basement Household Expense Tracker</h1>
 
+        <!-- Personal Quick Summary Card -->
+        <div class="card" id="personal-summary-card" style="background: #eef7fe; border-left: 5px solid #2980b9;">
+            <h2 style="margin-top: 0; color: #2c3e50;">My Outstanding Balances (<span id="summary-month-label">Current Month</span>)</h2>
+            <div id="personal-summary-content">
+                <p>Calculating your standing...</p>
+            </div>
+        </div>
+
         <div class="card">
             <h2>Submit New Expense</h2>
             <form id="expense-form" class="form-group">
@@ -191,7 +199,7 @@
                 <h2 id="log-title" style="margin: 0;">Logged Expenses (Current Month)</h2>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     <label for="view-month-select"><strong>View Month:</strong> </label>
-                    <select id="view-month-select" onchange="renderExpenses(); if(isAdmin || isJaimin) calculateSettlement();" style="padding: 5px 10px; min-width: 150px;"></select>
+                    <select id="view-month-select" onchange="renderExpenses(); calculateGlobalAndPersonalStandings();" style="padding: 5px 10px; min-width: 150px;"></select>
                     <button class="btn-export" onclick="exportToCSV()" title="Download CSV for Selected Month">Export CSV</button>
                 </div>
             </div>
@@ -373,9 +381,7 @@
                 
                 populateMonthDropdown();
                 renderExpenses();
-                if (isAdmin || isJaimin) {
-                    calculateSettlement();
-                }
+                calculateGlobalAndPersonalStandings();
             } catch (err) {
                 console.error('Error fetching cloud data:', err);
                 
@@ -390,9 +396,7 @@
                     statusEl.innerText = 'Offline mode: Loaded cached local data. Retrying cloud...';
                     populateMonthDropdown();
                     renderExpenses();
-                    if (isAdmin || isJaimin) {
-                        calculateSettlement();
-                    }
+                    calculateGlobalAndPersonalStandings();
                 } else {
                     statusEl.innerText = 'Sync failed. Retrying in 5 seconds...';
                 }
@@ -497,9 +501,7 @@
             document.getElementById('view-month-select').value = newExpenseMonth;
 
             renderExpenses();
-            if ((isAdmin || isJaimin) && document.getElementById('report-card').style.display === 'block') {
-                calculateSettlement();
-            }
+            calculateGlobalAndPersonalStandings();
             
             await saveExpensesToCloud();
 
@@ -592,9 +594,7 @@
 
             renderExpenses();
             await saveExpensesToCloud();
-            if (document.getElementById('report-card').style.display === 'block') {
-                calculateSettlement();
-            }
+            calculateGlobalAndPersonalStandings();
         }
 
         async function deleteExpense(id) {
@@ -605,9 +605,7 @@
                 populateMonthDropdown();
                 renderExpenses();
                 await saveExpensesToCloud();
-                if (document.getElementById('report-card').style.display === 'block') {
-                    calculateSettlement();
-                }
+                calculateGlobalAndPersonalStandings();
             }
         }
 
@@ -639,7 +637,7 @@
                 monthlyPayments.householdPaid[month][unitKey] = paidAmt;
             }
 
-            calculateSettlement();
+            calculateGlobalAndPersonalStandings();
             await saveExpensesToCloud();
         }
 
@@ -671,16 +669,22 @@
                 monthlyPayments.landlordPayments[month][unitKey] = paidAmt;
             }
 
-            calculateSettlement();
+            calculateGlobalAndPersonalStandings();
             await saveExpensesToCloud();
         }
 
         function calculateSettlement() {
-            if (!isAdmin && !isJaimin) return;
+            calculateGlobalAndPersonalStandings();
+        }
 
+        function calculateGlobalAndPersonalStandings() {
             const selectedMonth = document.getElementById('view-month-select').value;
             const prevMonth = getPreviousMonthString(selectedMonth);
             
+            const [sYear, sMonth] = selectedMonth.split('-');
+            const monthName = new Date(sYear, sMonth - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            document.getElementById('summary-month-label').innerText = monthName;
+
             let carryforwardDebts = {};
             let carryforwardLandlordDebts = {};
             const householdUnits = ["Biren", "Akshay & Kunjalbhabhi", "Biju"];
@@ -760,8 +764,6 @@
 
             const filteredExpenses = expenses.filter(e => !e.archived && e.date && e.date.startsWith(selectedMonth));
 
-            const [year, month] = selectedMonth.split('-');
-            const monthName = new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
             document.getElementById('report-title').innerText = `Household Expense Settlement Report (${monthName})`;
 
             let householdTotal = 0, shawTotal = 0, enmaxTotal = 0, atcoTotal = 0;
@@ -804,9 +806,11 @@
             if (!monthlyPayments.prevLandlordCarry) monthlyPayments.prevLandlordCarry = {};
             monthlyPayments.prevLandlordCarry[selectedMonth] = carryforwardLandlordDebts;
 
-            // 1. Rent & Utility Breakdown
+            // 1. Rent & Utility Breakdown Table (Only fully rendered if Admin/Landlord, but calculated for everyone)
             const spendingBody = document.getElementById('spending-breakdown-list');
             spendingBody.innerHTML = '';
+
+            let landlordBreakdownData = {};
 
             landlordRows.forEach(rowInfo => {
                 const personUtilityTotal = utilitySharePerPerson * rowInfo.utilityMultiplier;
@@ -821,6 +825,13 @@
 
                 const remainingDue = totalDueJaimin - paidAmount;
                 const isFullyPaid = (totalDueJaimin > 0 && remainingDue <= 0.005) || (totalDueJaimin === 0);
+
+                landlordBreakdownData[rowInfo.key] = {
+                    totalDue: totalDueJaimin,
+                    paidAmount: paidAmount,
+                    remainingDue: remainingDue,
+                    isFullyPaid: isFullyPaid
+                };
 
                 let actionCell = '';
                 if (isAdmin) {
@@ -856,189 +867,206 @@
                 spendingBody.appendChild(row);
             });
 
-            if (!isJaimin) {
-                let debtors = [];
-                let creditors = [];
+            // Settlement & Transfers calculations
+            let debtors = [];
+            let creditors = [];
+            let householdNetMap = {};
 
-                const settlementBody = document.getElementById('settlement-list');
-                settlementBody.innerHTML = '';
+            const settlementBody = document.getElementById('settlement-list');
+            settlementBody.innerHTML = '';
 
-                const unitShareCounts = {
-                    "Biren": 1,
-                    "Akshay & Kunjalbhabhi": 2,
-                    "Biju": 1
-                };
+            const unitShareCounts = {
+                "Biren": 1,
+                "Akshay & Kunjalbhabhi": 2,
+                "Biju": 1
+            };
 
-                householdUnits.forEach(unitKey => {
-                    const paid = unitHouseholdSpent[unitKey] || 0;
-                    const carriedOver = carryforwardDebts[unitKey] || 0;
-                    const baseShare = householdSharePerShare * unitShareCounts[unitKey];
-                    const targetShare = baseShare + carriedOver;
-                    const net = paid - targetShare;
+            householdUnits.forEach(unitKey => {
+                const paid = unitHouseholdSpent[unitKey] || 0;
+                const carriedOver = carryforwardDebts[unitKey] || 0;
+                const baseShare = householdSharePerShare * unitShareCounts[unitKey];
+                const targetShare = baseShare + carriedOver;
+                const net = paid - targetShare;
 
-                    const recordVal = monthlyPayments.householdPaid?.[selectedMonth]?.[unitKey];
-                    let paidAmount = 0;
-                    if (recordVal === true) {
-                        if (net < 0) paidAmount = Math.abs(net);
-                    } else if (typeof recordVal === 'number') {
-                        paidAmount = recordVal;
-                    }
+                const recordVal = monthlyPayments.householdPaid?.[selectedMonth]?.[unitKey];
+                let paidAmount = 0;
+                if (recordVal === true) {
+                    if (net < 0) paidAmount = Math.abs(net);
+                } else if (typeof recordVal === 'number') {
+                    paidAmount = recordVal;
+                }
 
-                    let statusClass = '';
-                    let statusText = '';
-                    let formattedNet = '';
+                let statusClass = '';
+                let statusText = '';
+                let formattedNet = '';
+                let isSettledCompletely = false;
 
-                    if (net >= 0) {
-                        const remainingGet = net - paidAmount;
-                        if (remainingGet <= 0.005) {
-                            statusClass = 'gets-back';
-                            statusText = 'Paid & Settled ✓';
-                            formattedNet = `$0.00`;
-                        } else {
-                            statusClass = 'gets-back';
-                            statusText = paidAmount > 0 ? `Gets back remaining $${remainingGet.toFixed(2)} (Partial Paid)` : `Gets back $${net.toFixed(2)} (Unpaid)`;
-                            formattedNet = `$${remainingGet.toFixed(2)}`;
-                            creditors.push({ person: unitKey, amount: remainingGet });
-                        }
+                if (net >= 0) {
+                    const remainingGet = net - paidAmount;
+                    if (remainingGet <= 0.005) {
+                        isSettledCompletely = true;
+                        statusClass = 'gets-back';
+                        statusText = 'Paid & Settled ✓';
+                        formattedNet = `$0.00`;
                     } else {
-                        const totalOwed = Math.abs(net);
-                        const remainingDebt = totalOwed - paidAmount;
-                        if (remainingDebt <= 0.005) {
-                            statusClass = 'gets-back';
-                            statusText = 'Paid & Settled ✓';
-                            formattedNet = `$0.00`;
-                        } else {
-                            statusClass = 'owes';
-                            statusText = paidAmount > 0 ? `Owes remaining $${remainingDebt.toFixed(2)} (Partial Paid)` : (carriedOver > 0 ? `Owes $${totalOwed.toFixed(2)} (Incl. Carryforward - Unpaid)` : `Owes $${totalOwed.toFixed(2)} (Unpaid)`);
-                            formattedNet = `-$${remainingDebt.toFixed(2)}`;
-                            debtors.push({ person: unitKey, amount: remainingDebt });
-                        }
+                        statusClass = 'gets-back';
+                        statusText = paidAmount > 0 ? `Gets back remaining $${remainingGet.toFixed(2)} (Partial Paid)` : `Gets back $${net.toFixed(2)} (Unpaid)`;
+                        formattedNet = `$${remainingGet.toFixed(2)}`;
+                        creditors.push({ person: unitKey, amount: remainingGet });
                     }
-
-                    let actionButtonHtml = '';
-                    if (isAdmin) {
-                        const isSettledCompletely = (net >= 0 ? (net - paidAmount <= 0.005) : (Math.abs(net) - paidAmount <= 0.005));
-                        const btnClass = isSettledCompletely ? 'btn-paid' : 'btn-unpaid';
-                        actionButtonHtml = `
-                            <td>
-                                <button class="btn-action ${btnClass}" onclick="promptHouseholdPayment('${selectedMonth}', '${unitKey}', ${Math.abs(net)})">
-                                    ${isSettledCompletely ? 'Paid & Settled ✓' : (paidAmount > 0 ? `Paid $${paidAmount.toFixed(2)} (Edit)` : 'Unpaid (Mark Paid)')}
-                                </button>
-                            </td>`;
-                    }
-
-                    let rowSubInfo = (carriedOver > 0 && !isSettledCompletely_check(net, paidAmount)) ? `<br><small style="color:#d35400;">Carryforward: +$${carriedOver.toFixed(2)}</small>` : '';
-                    if (paidAmount > 0 && statusText.includes('Partial')) {
-                        rowSubInfo += `<br><small style="color:#e67e22;">Paid so far: $${paidAmount.toFixed(2)}</small>`;
-                    }
-
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td><strong>${unitKey}</strong> ${rowSubInfo}</td>
-                        <td class="val-out-of-pocket">$${paid.toFixed(2)}</td>
-                        <td class="val-share-owed">$${targetShare.toFixed(2)}</td>
-                        <td class="${statusClass}">${formattedNet}</td>
-                        <td class="${statusClass}">${statusText}</td>
-                        ${actionButtonHtml}
-                    `;
-                    settlementBody.appendChild(row);
-                });
-
-                const transfersList = document.getElementById('transfers-list');
-                transfersList.innerHTML = '';
-
-                if (debtors.length === 0 && creditors.length === 0) {
-                    transfersList.innerHTML = '<li>Everyone is settled up equally for household expenses!</li>';
                 } else {
-                    let dIndex = 0, cIndex = 0;
-                    while (dIndex < debtors.length && cIndex < creditors.length) {
-                        let debtor = debtors[dIndex];
-                        let creditor = creditors[cIndex];
-
-                        let transferAmount = Math.min(debtor.amount, creditor.amount);
-
-                        const li = document.createElement('li');
-                        li.innerHTML = `<strong>${debtor.person}</strong> owes <strong>${creditor.person}</strong>: <span style="color:#27ae60; font-weight:bold;">$${transferAmount.toFixed(2)}</span>`;
-                        transfersList.appendChild(li);
-
-                        debtor.amount -= transferAmount;
-                        creditor.amount -= transferAmount;
-
-                        if (debtor.amount < 0.01) dIndex++;
-                        if (creditor.amount < 0.01) cIndex++;
+                    const totalOwed = Math.abs(net);
+                    const remainingDebt = totalOwed - paidAmount;
+                    if (remainingDebt <= 0.005) {
+                        isSettledCompletely = true;
+                        statusClass = 'gets-back';
+                        statusText = 'Paid & Settled ✓';
+                        formattedNet = `$0.00`;
+                    } else {
+                        statusClass = 'owes';
+                        statusText = paidAmount > 0 ? `Owes remaining $${remainingDebt.toFixed(2)} (Partial Paid)` : (carriedOver > 0 ? `Owes $${totalOwed.toFixed(2)} (Incl. Carryforward - Unpaid)` : `Owes $${totalOwed.toFixed(2)} (Unpaid)`);
+                        formattedNet = `-$${remainingDebt.toFixed(2)}`;
+                        debtors.push({ person: unitKey, amount: remainingDebt });
                     }
                 }
+
+                householdNetMap[unitKey] = {
+                    net: net,
+                    paidAmount: paidAmount,
+                    isSettled: isSettledCompletely,
+                    targetShare: targetShare,
+                    paid: paid
+                };
+
+                let actionButtonHtml = '';
+                if (isAdmin) {
+                    const btnClass = isSettledCompletely ? 'btn-paid' : 'btn-unpaid';
+                    actionButtonHtml = `
+                        <td>
+                            <button class="btn-action ${btnClass}" onclick="promptHouseholdPayment('${selectedMonth}', '${unitKey}', ${Math.abs(net)})">
+                                ${isSettledCompletely ? 'Paid & Settled ✓' : (paidAmount > 0 ? `Paid $${paidAmount.toFixed(2)} (Edit)` : 'Unpaid (Mark Paid)')}
+                            </button>
+                        </td>`;
+                }
+
+                let rowSubInfo = (carriedOver > 0 && !isSettledCompletely) ? `<br><small style="color:#d35400;">Carryforward: +$${carriedOver.toFixed(2)}</small>` : '';
+                if (paidAmount > 0 && statusText.includes('Partial')) {
+                    rowSubInfo += `<br><small style="color:#e67e22;">Paid so far: $${paidAmount.toFixed(2)}</small>`;
+                }
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${unitKey}</strong> ${rowSubInfo}</td>
+                    <td class="val-out-of-pocket">$${paid.toFixed(2)}</td>
+                    <td class="val-share-owed">$${targetShare.toFixed(2)}</td>
+                    <td class="${statusClass}">${formattedNet}</td>
+                    <td class="${statusClass}">${statusText}</td>
+                    ${actionButtonHtml}
+                `;
+                settlementBody.appendChild(row);
+            });
+
+            // Calculate exact peer-to-peer household transfer lines
+            let tempDebtors = JSON.parse(JSON.stringify(debtors));
+            let tempCreditors = JSON.parse(JSON.stringify(creditors));
+            let transferListDetailed = [];
+
+            while (tempDebtors.length > 0 && tempCreditors.length > 0) {
+                let debtor = tempDebtors[0];
+                let creditor = tempCreditors[0];
+                let transferAmount = Math.min(debtor.amount, creditor.amount);
+
+                transferListDetailed.push({
+                    from: debtor.person,
+                    to: creditor.person,
+                    amount: transferAmount
+                });
+
+                debtor.amount -= transferAmount;
+                creditor.amount -= transferAmount;
+
+                if (debtor.amount < 0.01) tempDebtors.shift();
+                if (creditor.amount < 0.01) tempCreditors.shift();
             }
+
+            const transfersList = document.getElementById('transfers-list');
+            transfersList.innerHTML = '';
+
+            if (transferListDetailed.length === 0) {
+                transfersList.innerHTML = '<li>Everyone is settled up equally for household expenses!</li>';
+            } else {
+                transferListDetailed.forEach(t => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<strong>${t.from}</strong> owes <strong>${t.to}</strong>: <span style="color:#27ae60; font-weight:bold;">$${t.amount.toFixed(2)}</span>`;
+                    transfersList.appendChild(li);
+                });
+            }
+
+            // Render Personal Summary Card for the logged-in user
+            renderPersonalSummaryCard(householdNetMap, transferListDetailed, landlordBreakdownData);
 
             document.getElementById('report-card').style.display = 'block';
         }
 
-        function isSettledCompletely_check(net, paidAmount) {
-            return net >= 0 ? (net - paidAmount <= 0.005) : (Math.abs(net) - paidAmount <= 0.005);
-        }
+        function renderPersonalSummaryCard(householdNetMap, transferListDetailed, landlordBreakdownData) {
+            const container = document.getElementById('personal-summary-content');
+            let html = '';
 
-        function exportToCSV() {
-            const selectedMonth = document.getElementById('view-month-select').value;
-            const monthExpenses = expenses.filter(e => !e.archived && e.date && e.date.startsWith(selectedMonth));
-
-            if (monthExpenses.length === 0) {
-                alert('No active expenses recorded for this month to export.');
+            if (isJaimin) {
+                html = `<p>You are the <strong>Landlord / Utility Manager</strong>. All rent and utility shares are collected by you.</p>`;
+                container.innerHTML = html;
                 return;
             }
 
-            let csvContent = "Date,Paid By,Category,Description,Amount\n";
-
-            monthExpenses.forEach(e => {
-                const escapedDesc = e.description ? `"${e.description.replace(/"/g, '""')}"` : '""';
-                const row = `"${e.date}","${e.paidBy}","${e.category}",${escapedDesc},${e.amount}`;
-                csvContent += row + "\n";
-            });
-
-            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-
-            const linkNode = document.createElement("a");
-            linkNode.setAttribute("href", url);
-            linkNode.setAttribute("download", `Expenses_${selectedMonth}.csv`);
-            document.body.appendChild(linkNode);
-            
-            linkNode.click();
-
-            document.body.removeChild(linkNode);
-            setTimeout(() => URL.revokeObjectURL(url), 100);
-        }
-
-        async function clearAllData() {
-            if (!isAdmin) return;
-
-            const selectedMonth = document.getElementById('view-month-select').value;
-            const [year, month] = selectedMonth.split('-');
-            const monthName = new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-
-            const activeMonthExpenses = expenses.filter(e => !e.archived && e.date && e.date.startsWith(selectedMonth));
-
-            if (activeMonthExpenses.length === 0) {
-                alert(`No active expenses recorded for ${monthName} to archive.`);
-                return;
+            // Determine user's household unit group name
+            let userUnitKey = currentUser;
+            if (currentUser === 'Akshay' || currentUser === 'Kunjalbhabhi') {
+                userUnitKey = 'Akshay & Kunjalbhabhi';
             }
 
-            const confirmed = confirm(
-                `Archive ${activeMonthExpenses.length} expense(s) for ${monthName}?\n\n` +
-                `This will hide them from calculations and logs, but they will remain safely stored in the cloud database.`
-            );
+            // 1. Check Landlord / Utility dues payable to Jaimin
+            let landlordKey = (currentUser === 'Akshay' || currentUser === 'Kunjalbhabhi') ? 'Akshay & Kunjalbhabhi' : currentUser;
+            let landlordInfo = landlordBreakdownData[landlordKey];
 
-            if (!confirmed) return;
-
-            expenses.forEach(e => {
-                if (e.date && e.date.startsWith(selectedMonth)) {
-                    e.archived = true;
+            if (landlordInfo) {
+                if (landlordInfo.isFullyPaid) {
+                    html += `<p>✅ <strong>Rent & Utilities (to Jaimin):</strong> Fully paid & settled ($${landlordInfo.totalDue.toFixed(2)}).</p>`;
+                } else {
+                    let paidNote = landlordInfo.paidAmount > 0 ? ` (Paid so far: $${landlordInfo.paidAmount.toFixed(2)})` : '';
+                    html += `<p>📌 <strong>Rent & Utilities Owed to Jaimin:</strong> <span class="owes">$${landlordInfo.remainingDue.toFixed(2)}</span>${paidNote}</p>`;
                 }
-            });
+            }
 
-            await saveExpensesToCloud();
-            populateMonthDropdown();
-            renderExpenses();
-            document.getElementById('report-card').style.display = 'none';
+            // 2. Check Household Transfers / Shared Expenses standing
+            let unitStanding = householdNetMap[userUnitKey];
+            if (unitStanding) {
+                if (unitStanding.isSettled) {
+                    html += `<p>✅ <strong>Household Expenses (Groceries, etc.):</strong> All settled up!</p>`;
+                } else if (unitStanding.net >= 0) {
+                    let remainingGet = unitStanding.net - unitStanding.paidAmount;
+                    if (remainingGet > 0.005) {
+                        html += `<p>💰 <strong>Household Expenses:</strong> You <strong>get back</strong> a net balance of <span class="gets-back">+$${remainingGet.toFixed(2)}</span>.</p>`;
+                    } else {
+                        html += `<p>✅ <strong>Household Expenses:</strong> Settled up!</p>`;
+                    }
+                } else {
+                    // This unit owes money. Let's see who they owe specifically from transferListDetailed
+                    let totalRemainingOwedToPay = Math.abs(unitStanding.net) - unitStanding.paidAmount;
+                    if (totalRemainingOwedToPay > 0.005) {
+                        let specificOwes = transferListDetailed.filter(t => t.from === userUnitKey);
+                        if (specificOwes.length > 0) {
+                            let breakdownStr = specificOwes.map(o => `<strong>$${o.amount.toFixed(2)}</strong> to <strong>${o.to}</strong>`).join(' and ');
+                            html += `<p>⚠️ <strong>Household Expenses Owed:</strong> You owe ${breakdownStr} (Total: <span class="owes">-$${totalRemainingOwedToPay.toFixed(2)}</span>).</p>`;
+                        } else {
+                            html += `<p>⚠️ <strong>Household Expenses Owed:</strong> You owe a net total of <span class="owes">-$${totalRemainingOwedToPay.toFixed(2)}</span>.</p>`;
+                        }
+                    } else {
+                        html += `<p>✅ <strong>Household Expenses:</strong> Settled up!</p>`;
+                    }
+                }
+            }
+
+            container.innerHTML = html;
         }
 
         // Initialize application on load
