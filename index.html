@@ -367,7 +367,9 @@
                 const data = await response.json();
                 expenses = data.record.expenses || [];
                 monthlyPayments = data.record.monthlyPayments || {};
-                generatedReports = data.record.generatedReports || {};
+                
+                // Explicitly ignore any saved generatedReports from cloud/cache so reports are always hidden by default on fresh page load
+                generatedReports = {}; 
                 
                 if (!monthlyPayments.landlordPayments) {
                     monthlyPayments.landlordPayments = {};
@@ -391,11 +393,11 @@
                 
                 const cached = localStorage.getItem('cached_expenses');
                 const cachedPayments = localStorage.getItem('cached_payments');
-                const cachedReports = localStorage.getItem('cached_reports');
                 if (cached) {
                     expenses = JSON.parse(cached);
                     if (cachedPayments) monthlyPayments = JSON.parse(cachedPayments);
-                    if (cachedReports) generatedReports = JSON.parse(cachedReports);
+                    generatedReports = {}; // Start fresh hidden state
+                    
                     if (!monthlyPayments.landlordPayments) monthlyPayments.landlordPayments = {};
                     if (!monthlyPayments.householdPaid) monthlyPayments.householdPaid = {};
                     
@@ -670,6 +672,8 @@
         }
 
         function onMonthChange() {
+            // When switching dropdown months, reset report visibility back to hidden
+            delete generatedReports[document.getElementById('view-month-select').value];
             renderExpenses();
             computeAndRenderPersonalSummary();
             checkAndToggleReportVisibility();
@@ -679,7 +683,6 @@
             const selectedMonth = document.getElementById('view-month-select').value;
             generatedReports[selectedMonth] = true;
             checkAndToggleReportVisibility();
-            saveExpensesToCloud();
         }
 
         function checkAndToggleReportVisibility() {
@@ -687,7 +690,6 @@
             const isGenerated = generatedReports[selectedMonth] === true;
             const reportCard = document.getElementById('report-card');
 
-            // Strictly require explicit manual generation for any month unless flagged as generated
             if (!isGenerated) {
                 reportCard.style.display = 'none';
                 return;
