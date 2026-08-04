@@ -167,7 +167,7 @@
 
         <h1>253 Herron Mews Basement Household Expense Tracker</h1>
 
-        <!-- Personal Quick Summary Card (Shows Past Month Finalized Standings) -->
+        <!-- Personal Quick Summary Card (Always Shows Previous Finalized Month Balances) -->
         <div class="card" id="personal-summary-card" style="background: #eef7fe; border-left: 5px solid #2980b9;">
             <h2 style="margin-top: 0; color: #2c3e50;">My Finalized Past Month Balances (<span id="summary-month-label">Previous Month</span>)</h2>
             <div id="personal-summary-content">
@@ -225,7 +225,7 @@
             </div>
         </div>
 
-        <div class="card" id="report-card" style="display: block;">
+        <div class="card" id="report-card" style="display: none;">
             <h2 id="report-title">Monthly Settlement Report (Basement)</h2>
             
             <div class="summary-box">
@@ -679,10 +679,11 @@
 
         function calculateGlobalAndPersonalStandings() {
             const selectedMonth = document.getElementById('view-month-select').value;
+            const currentActiveMonth = getLocalMonthString();
             const prevMonth = getPreviousMonthString(selectedMonth);
             
-            // Personal Summary Card uses the selected dropdown view month instead of locked previous month
-            const targetSummaryMonth = selectedMonth;
+            // Personal Summary Card ALWAYS strictly looks at the previous finalized month (e.g. July when viewing August)
+            const targetSummaryMonth = getPreviousMonthString(currentActiveMonth);
 
             const [tsYear, tsMonth] = targetSummaryMonth.split('-');
             const targetMonthName = new Date(tsYear, tsMonth - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -990,7 +991,15 @@
                 });
             }
 
-            // Compute and render the Personal Summary Card matching the selected dropdown month
+            // Hide the Settlement Report card for regular users if viewing the active current month (August 2026)
+            const reportCard = document.getElementById('report-card');
+            if (!isAdmin && !isJaimin && selectedMonth === currentActiveMonth) {
+                reportCard.style.display = 'none';
+            } else {
+                reportCard.style.display = 'block';
+            }
+
+            // Compute and render the Personal Summary Card matching the previous finalized month
             computeAndRenderPastMonthPersonalSummary(targetSummaryMonth);
         }
 
@@ -1160,7 +1169,7 @@
                     if (totalRemainingOwedToPay > 0.005) {
                         let specificOwes = transferListDetailed.filter(t => t.from === userUnitKey);
                         if (specificOwes.length > 0) {
-                            let breakdownStr = specificOwes.map(o => `<strong>$${o.amount.toFixed(2)}</strong> to <strong>$${o.to}</strong>`).join(' and ');
+                            let breakdownStr = specificOwes.map(o => `<strong>$${o.amount.toFixed(2)}</strong> to <strong>${o.to}</strong>`).join(' and ');
                             html += `<p>⚠️ <strong>Household Expenses Owed:</strong> You owe ${breakdownStr} (Total: <span class="owes">-$${totalRemainingOwedToPay.toFixed(2)}</span>).</p>`;
                         } else {
                             html += `<p>⚠️ <strong>Household Expenses Owed:</strong> You owe a net total of <span class="owes">-$${totalRemainingOwedToPay.toFixed(2)}</span>.</p>`;
