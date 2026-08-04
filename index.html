@@ -684,8 +684,15 @@
 
         function checkAndToggleReportVisibility() {
             const selectedMonth = document.getElementById('view-month-select').value;
+            const currentMonth = getLocalMonthString();
             const isGenerated = generatedReports[selectedMonth] === true;
             const reportCard = document.getElementById('report-card');
+
+            // If it's the current active month, hide by default unless explicitly generated
+            if (selectedMonth === currentMonth && !isGenerated) {
+                reportCard.style.display = 'none';
+                return;
+            }
 
             if (!isGenerated) {
                 reportCard.style.display = 'none';
